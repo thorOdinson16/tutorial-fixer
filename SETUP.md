@@ -1,7 +1,7 @@
 # Setup guide
 
-Everything you need to get Tutorial Rot Fixer (TRF) running from a fresh checkout. The project
-lives in the `tutorial_rot_fixer/` directory of the repository; run all commands from there.
+Everything you need to get Tutorial Rot Fixer (TRF) running from a fresh checkout. Run all
+commands from the repository root.
 
 ## 1. Prerequisites
 
@@ -19,7 +19,7 @@ local LLM.
 ## 2. Install
 
 ```bash
-cd tutorial_rot_fixer
+git clone https://github.com/thorOdinson16/tutorial-fixer.git && cd tutorial-fixer
 uv sync                      # core deps + dev tools (pytest, ruff)
 uv sync --extra rag          # retrieval stack: sentence-transformers, numpy
 ```
