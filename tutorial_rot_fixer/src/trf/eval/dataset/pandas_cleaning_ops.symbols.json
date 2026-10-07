@@ -1,0 +1,7 @@
+{
+  "pandas.Series.str.replace": "behavior_changed",
+  "pandas.Int64Index": "removed",
+  "pandas.Series.mad": "removed",
+  "pandas.DataFrame.drop": "signature_changed",
+  "pandas.Series.is_monotonic": "renamed"
+}

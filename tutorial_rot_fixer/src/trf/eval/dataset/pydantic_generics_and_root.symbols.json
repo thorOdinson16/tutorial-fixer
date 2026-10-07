@@ -1,0 +1,8 @@
+{
+  "pydantic.parse_obj_as": "removed",
+  "pydantic.BaseModel.__root__": "removed",
+  "pydantic.BaseModel.update_forward_refs": "renamed",
+  "pydantic.generics.GenericModel": "removed",
+  "pydantic.BaseModel.copy": "renamed",
+  "pydantic.BaseModel.construct": "renamed"
+}

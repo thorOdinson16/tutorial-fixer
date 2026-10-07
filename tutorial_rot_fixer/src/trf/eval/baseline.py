@@ -27,22 +27,30 @@ def apply(state: GraphState, node) -> GraphState:
     return state.model_copy(update=node(state))
 
 
-def run_case(name: str, mode: str, settings: SandboxSettings) -> tuple[GraphState, dict]:
-    s = load_case(name)
-    for node in (ingest.ingest, extract.extract, resolve_versions):
-        s = apply(s, node)
+def run_state(s: GraphState, mode: str, settings: SandboxSettings) -> GraphState:
+    """Execute an already ingested/extracted/resolved state in the target or old-pins env."""
     builder = ensure_env_image
     if mode == "old":
         missing = [lib for lib in s.libraries if lib not in s.old_versions]
         if missing:
-            raise SystemExit(f"{name}: no old version known for {missing}; cannot run control")
+            raise SystemExit(f"no old version known for {missing}; cannot run control")
         s = s.model_copy(update={"target_versions": dict(s.old_versions)})
         settings = settings.model_copy(update={"python_version": OLD_PYTHON})
 
         def builder(reqs, optional, st):
             return ensure_env_image([*reqs, *OLD_EXTRA_REQS], optional, st)
 
-    s = apply(s, make_sandbox(env_builder=builder, settings=settings))
+    return apply(s, make_sandbox(env_builder=builder, settings=settings))
+
+
+def prepare(s: GraphState) -> GraphState:
+    for node in (ingest.ingest, extract.extract, resolve_versions):
+        s = apply(s, node)
+    return s
+
+
+def run_case(name: str, mode: str, settings: SandboxSettings) -> tuple[GraphState, dict]:
+    s = run_state(prepare(load_case(name)), mode, settings)
     runs = {r.block_id: r for r in s.run_results}
     blocks = []
     for b in s.blocks:

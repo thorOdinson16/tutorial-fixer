@@ -1,0 +1,10 @@
+{
+  "pydantic.BaseModel.Config": "signature_changed",
+  "pydantic.BaseModel.Config.allow_population_by_field_name": "signature_changed",
+  "pydantic.BaseModel.Config.anystr_strip_whitespace": "signature_changed",
+  "pydantic.BaseModel.Config.schema_extra": "signature_changed",
+  "pydantic.BaseModel.Config.allow_mutation": "signature_changed",
+  "pydantic.BaseModel.dict": "renamed",
+  "pydantic.BaseModel.json": "renamed",
+  "pydantic.BaseModel.schema": "renamed"
+}

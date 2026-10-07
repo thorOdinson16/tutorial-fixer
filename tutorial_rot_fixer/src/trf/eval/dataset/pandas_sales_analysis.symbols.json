@@ -1,0 +1,7 @@
+{
+  "pandas.DataFrame.append": "removed",
+  "pandas.DataFrameGroupBy.mean": "behavior_changed",
+  "pandas.Series.iteritems": "removed",
+  "pandas.datetime": "removed",
+  "pandas.DataFrame.to_csv(line_terminator)": "signature_changed"
+}

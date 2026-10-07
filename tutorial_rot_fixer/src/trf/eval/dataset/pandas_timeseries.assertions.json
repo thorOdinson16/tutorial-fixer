@@ -1,26 +1,26 @@
 {
-  "b3": {
+  "b2": {
     "stdout_contains": [
       "Series 5"
     ]
   },
-  "b4": {
+  "b3": {
     "stdout_contains": [
       "[1, 1, 2, 2, 3]"
     ]
   },
-  "b5": {
+  "b4": {
     "stdout_contains": [
       "[22, 16, 15]",
       "[53]"
     ]
   },
-  "b6": {
+  "b5": {
     "stdout_contains": [
       "31"
     ]
   },
-  "b7": {
+  "b6": {
     "stdout_contains": [
       "[1, 1]"
     ]

@@ -1,0 +1,6 @@
+{
+  "pandas.DataFrame.append": "removed",
+  "pandas.Series.append": "removed",
+  "pandas.DataFrame.pivot": "signature_changed",
+  "pandas.np.mean": "removed"
+}

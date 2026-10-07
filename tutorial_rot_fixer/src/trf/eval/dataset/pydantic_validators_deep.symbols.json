@@ -1,0 +1,6 @@
+{
+  "pydantic.validator": "renamed",
+  "pydantic.validator(pre)": "signature_changed",
+  "pydantic.validator(each_item)": "signature_changed",
+  "pydantic.validator(always)": "signature_changed"
+}

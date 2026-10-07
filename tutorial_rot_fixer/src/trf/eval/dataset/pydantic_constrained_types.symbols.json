@@ -1,0 +1,6 @@
+{
+  "pydantic.constr(regex)": "signature_changed",
+  "pydantic.conlist(min_items)": "signature_changed",
+  "pydantic.conlist(max_items)": "signature_changed",
+  "pydantic.HttpUrl": "behavior_changed"
+}

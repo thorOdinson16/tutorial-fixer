@@ -1,0 +1,4 @@
+{
+  "pandas.DataFrameGroupBy.mean": "behavior_changed",
+  "pandas.DataFrameGroupBy.sum": "behavior_changed"
+}

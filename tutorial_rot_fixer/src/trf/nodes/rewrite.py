@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from trf.config import LIBRARIES, PipelineFlags
 from trf.llm import LLM, LLMError
-from trf.nodes.extract import analyze_block, extra_packages_for, strip_magics
+from trf.nodes.extract import analyze_blocks, extra_packages_for, strip_magics
 from trf.state import ChangeLogEntry, Chunk, CodeBlock, DiffVerdict, GraphState
 
 SYSTEM = (
@@ -205,12 +205,14 @@ def make_rewrite(
         warnings = list(state.warnings)
         entries = list(state.change_log)
         blocks = list(state.blocks)
-        names = set(LIBRARIES)
+        # Symbols per block come from ONE sequential analysis (blocks share a namespace), computed
+        # on the pre-rewrite code so every block is judged against the same snapshot.
+        used_by_block = analyze_blocks(state.blocks).used
 
         for i, b in enumerate(blocks):
             if b.lang != "python":
                 continue
-            used = {s.name for s in analyze_block(b.id, b.source, names)[0]}
+            used = used_by_block.get(b.id, set())
             mine = [v for k, v in verdicts.items() if k in used]
             if state.loop_count == 0:
                 if cited_mode and not mine:

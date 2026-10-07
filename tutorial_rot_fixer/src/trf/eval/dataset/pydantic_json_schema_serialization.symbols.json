@@ -1,0 +1,11 @@
+{
+  "pydantic.BaseModel.Config": "signature_changed",
+  "pydantic.BaseModel.Config.json_encoders": "signature_changed",
+  "pydantic.BaseModel.json": "renamed",
+  "pydantic.BaseModel.dict": "renamed",
+  "pydantic.BaseModel.parse_raw": "renamed",
+  "pydantic.BaseModel.schema": "renamed",
+  "pydantic.BaseModel.__fields__": "renamed",
+  "pydantic.fields.ModelField.required": "renamed",
+  "pydantic.BaseModel.copy": "renamed"
+}

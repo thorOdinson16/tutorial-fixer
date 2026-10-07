@@ -42,12 +42,10 @@ agg = df.groupby("team").agg({"points": "sum", "rebounds": "max"})
 print(agg.loc["red"].tolist())
 ```
 
-Sort every group internally; the result keeps the original row index:
+Sort every group internally; the group key becomes an extra index level:
 
 ```python
-ranked = df.groupby("team", group_keys=False).apply(
-    lambda g: g.sort_values("points", ascending=False)
-)
+ranked = df.groupby("team").apply(lambda g: g.sort_values("points", ascending=False))
 print(ranked.index.nlevels, ranked["player"].tolist())
 ```
 
@@ -58,8 +56,8 @@ df["share"] = df["points"] / df.groupby("team")["points"].transform("sum")
 print(df["share"].round(2).tolist())
 ```
 
-Summing everything, including the text column:
+Which columns survive a plain sum?
 
 ```python
-print(df.groupby("team").sum().loc["red", "player"])
+print(list(df.groupby("team").sum(numeric_only=True).columns))
 ```

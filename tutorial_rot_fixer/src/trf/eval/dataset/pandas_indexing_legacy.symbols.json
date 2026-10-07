@@ -1,0 +1,7 @@
+{
+  "pandas.DataFrame.lookup": "removed",
+  "pandas.DataFrame.set_axis(inplace)": "signature_changed",
+  "pandas.Index.is_monotonic": "renamed",
+  "pandas.Series.is_monotonic": "renamed",
+  "pandas.Series.sum(level)": "signature_changed"
+}

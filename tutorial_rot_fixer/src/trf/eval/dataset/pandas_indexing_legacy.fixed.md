@@ -26,7 +26,7 @@ Pick one value per row/column pair:
 
 ```python
 rows = [0, 2, 3]
-print([df.at[r, c].item() for r, c in zip(rows, ["temp", "temp", "pop"])])
+print([float(df.at[r, c]) for r, c in zip(rows, ["temp", "temp", "pop"])])
 ```
 
 Relabel the rows in place:

@@ -1,0 +1,10 @@
+{
+  "pydantic.BaseSettings": "renamed",
+  "pydantic.BaseSettings.Config": "signature_changed",
+  "pydantic.BaseSettings.Config.env_prefix": "signature_changed",
+  "pydantic.root_validator": "renamed",
+  "pandas.DataFrame.append": "removed",
+  "pydantic.BaseModel.parse_obj": "renamed",
+  "pydantic.BaseModel.dict": "renamed",
+  "pandas.DataFrame.drop": "signature_changed"
+}

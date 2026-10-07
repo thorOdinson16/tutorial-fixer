@@ -1,0 +1,7 @@
+{
+  "pandas.read_csv(squeeze)": "signature_changed",
+  "pandas.Index.week": "removed",
+  "pandas.DataFrame.resample": "behavior_changed",
+  "pandas.datetime": "removed",
+  "pandas.read_csv(date_parser)": "signature_changed"
+}

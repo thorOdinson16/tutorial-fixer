@@ -1,0 +1,13 @@
+{
+  "pydantic.validator": "renamed",
+  "pydantic.Field(regex)": "signature_changed",
+  "pydantic.BaseModel.Config": "signature_changed",
+  "pydantic.BaseModel.Config.orm_mode": "signature_changed",
+  "pydantic.BaseModel.Config.anystr_strip_whitespace": "signature_changed",
+  "pydantic.BaseModel.parse_obj": "renamed",
+  "pydantic.BaseModel.dict": "renamed",
+  "pydantic.BaseModel.json": "renamed",
+  "pydantic.BaseModel.schema": "renamed",
+  "pydantic.BaseModel.copy": "renamed",
+  "pydantic.BaseModel.parse_raw": "renamed"
+}

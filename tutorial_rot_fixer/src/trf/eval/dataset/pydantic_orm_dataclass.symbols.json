@@ -1,0 +1,6 @@
+{
+  "pydantic.BaseModel.Config": "signature_changed",
+  "pydantic.BaseModel.Config.orm_mode": "signature_changed",
+  "pydantic.BaseModel.from_orm": "renamed",
+  "pydantic.validator": "renamed"
+}

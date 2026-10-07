@@ -139,6 +139,7 @@ class LibraryConfig(BaseModel):
     changelog_sources: list[str] = Field(default_factory=list)
     migration_sources: list[str] = Field(default_factory=list)
     target_major: int | None = None  # the migration's destination major (v1: pandas 2, pydantic 2)
+    bundled_imports: list[str] = Field(default_factory=list)  # modules pip installs with it
     version_resolver: VersionResolver = pypi_latest
 
     def resolve_target_version(self, pin: str | None = None) -> str:
@@ -172,6 +173,7 @@ register_library(
         name="pydantic",
         pypi_name="pydantic",
         target_major=2,
+        bundled_imports=["typing_extensions", "annotated_types", "pydantic_core"],
         docs_sources=[
             f"{_PD_DOCS}/concepts/{p}.md"
             for p in ("models", "validators", "fields", "serialization", "config")
@@ -185,6 +187,7 @@ register_library(
         name="pandas",
         pypi_name="pandas",
         target_major=2,
+        bundled_imports=["numpy", "pytz", "dateutil"],
         docs_sources=[],
         # minor-release notes carry the deprecations/removals; patch notes are bug fixes
         changelog_sources=[

@@ -1,0 +1,6 @@
+{
+  "pandas.read_csv(error_bad_lines)": "signature_changed",
+  "pandas.read_csv(warn_bad_lines)": "signature_changed",
+  "pandas.read_csv(prefix)": "signature_changed",
+  "pandas.DataFrame.to_csv(line_terminator)": "signature_changed"
+}
