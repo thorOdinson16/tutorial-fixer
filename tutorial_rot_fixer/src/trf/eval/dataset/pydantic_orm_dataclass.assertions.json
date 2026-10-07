@@ -1,0 +1,24 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "1 Ann None"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "'email': 'ann@example.com'",
+      "'name': 'Bo'"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "12 int"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "20.0",
+      "rejected"
+    ]
+  }
+}

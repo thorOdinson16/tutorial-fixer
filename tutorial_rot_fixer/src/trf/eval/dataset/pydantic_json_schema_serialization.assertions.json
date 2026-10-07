@@ -1,0 +1,31 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "2024-03-05",
+      "null"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "dict_keys(['name', 'when', 'attendees'])",
+      "Launch"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "Demo 2024",
+      "['attendees', 'name', 'room', 'when']"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "['name', 'when', 'attendees', 'room']",
+      "True"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "A1 None"
+    ]
+  }
+}

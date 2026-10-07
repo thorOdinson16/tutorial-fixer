@@ -1,0 +1,29 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "A1 'Pen' B2"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "'SKU': 'A1'",
+      "\"SKU\""
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "('color',)"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "Product ['SKU', 'price', 'tags', 'title']",
+      "['SKU', 'title', 'price']"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "immutable"
+    ]
+  }
+}

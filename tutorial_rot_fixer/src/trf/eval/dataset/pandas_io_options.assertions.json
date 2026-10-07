@@ -1,0 +1,27 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "['ann', 'cy']"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "['col0', 'col1']"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "'name,score\\nann,10\\ncy,9\\n'"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "{'id': 'int64', 'flag': 'object'}"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "[1, 2]"
+    ]
+  }
+}

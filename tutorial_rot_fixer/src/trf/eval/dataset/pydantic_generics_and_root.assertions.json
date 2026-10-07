@@ -1,0 +1,28 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "5 2"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "[1, 2, 3] 6"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "2"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "7"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "5 6",
+      "9"
+    ]
+  }
+}

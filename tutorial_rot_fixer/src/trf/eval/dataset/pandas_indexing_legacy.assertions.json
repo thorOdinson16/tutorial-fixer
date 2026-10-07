@@ -1,0 +1,32 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "(4, 3)"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "[3, 20, 9.5]"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "['a', 'b', 'c', 'd']"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "True True"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "['b', 'c', 'd'] d"
+    ]
+  },
+  "b8": {
+    "stdout_contains": [
+      "{'x': 3, 'y': 7}"
+    ]
+  }
+}

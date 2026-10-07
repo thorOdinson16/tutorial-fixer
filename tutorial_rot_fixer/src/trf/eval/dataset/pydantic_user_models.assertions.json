@@ -1,0 +1,6 @@
+{
+  "b3": {"stdout_contains": ["1 Alice"]},
+  "b4": {"stdout_contains": ["'tags': []", "['address', 'id', 'name']"]},
+  "b5": {"stdout_contains": ["3"]},
+  "b6": {"stdout_contains": ["Bob"], "snippet": "assert same.id == 1"}
+}

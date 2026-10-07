@@ -1,0 +1,7 @@
+# Keep LF everywhere: ingest/assemble round-trip tutorials byte-for-byte, so the dataset
+# Markdown must not be rewritten to CRLF on Windows checkouts.
+* text=auto eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf

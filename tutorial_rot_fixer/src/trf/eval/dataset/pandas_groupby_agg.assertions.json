@@ -1,0 +1,32 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "{'blue': 2, 'green': 1, 'red': 2}"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "{'blue': 10.0, 'green': 5.0, 'red': 12.0}"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "[24, 5]"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "1 ["
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "[0.42, 0.58, 0.4, 0.6, 1.0]"
+    ]
+  },
+  "b8": {
+    "stdout_contains": [
+      "annbo"
+    ]
+  }
+}

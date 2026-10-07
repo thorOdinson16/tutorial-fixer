@@ -1,0 +1,22 @@
+{
+  "b3": {
+    "stdout_contains": [
+      "ada_l 30 ['math']"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "['age', 'interests', 'username']"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "https://example.com/docs example.com None"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "True True"
+    ]
+  }
+}

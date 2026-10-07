@@ -1,0 +1,16 @@
+# environments and caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# project caches and run artifacts (regenerate with the documented commands)
+.trf_cache/
+runs/
+
+# local tooling
+.claude/
+.env
+.env.*

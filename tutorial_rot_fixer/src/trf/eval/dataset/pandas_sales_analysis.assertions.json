@@ -1,0 +1,8 @@
+{
+  "b2": {"stdout_contains": ["(4, 5)"]},
+  "b3": {"stdout_contains": ["5"]},
+  "b4": {"stdout_contains": ["'North': 47.5", "'South': 30.0"]},
+  "b5": {"stdout_contains": ["North 17"]},
+  "b6": {"stdout_contains": ["3"]},
+  "b7": {"stdout_contains": ["date,region,product,units,price,revenue"]}
+}

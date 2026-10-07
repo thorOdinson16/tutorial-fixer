@@ -1,0 +1,57 @@
+[project]
+name = "trf"
+version = "0.1.0"
+description = "Tutorial Rot Fixer: multi-agent system that updates outdated Python tutorials and verifies them by execution."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "langgraph>=0.2",
+    "httpx>=0.27",
+    "packaging>=24.0",
+]
+
+[project.optional-dependencies]
+# Phase 2 retrieval stack (kept optional so Phase 0/1 stay light)
+rag = [
+    "numpy>=1.26",
+    "sentence-transformers>=3.0",
+]
+# Phase 5
+api = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trf"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+markers = [
+    "docker: requires a running Docker daemon (skipped otherwise)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["src/trf/eval/dataset"]  # tutorials are test data; never reformat
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E501"]  # case tables
+"tests/*.py" = ["E501"]  # long assertion / fixture lines are fine in tests
