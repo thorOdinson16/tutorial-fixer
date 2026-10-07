@@ -81,7 +81,7 @@ tutorial_rot_fixer/
     nodes/           ingest, extract, resolve_versions, retrieve, diff, rewrite, sandbox, assemble
     rag/             corpus, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
     sandbox_runner/  Dockerfile + in-container runner
-    eval/            dataset/, loader, baseline (run_eval, metrics: Phase 3)
+    eval/            dataset/ (15 tutorials), loader, baseline, validate_dataset, metrics, run_eval
     api/             FastAPI (Phase 5)
   scripts/           retrieval_sanity.py
   tests/
@@ -98,6 +98,43 @@ tutorial_rot_fixer/
 | 4 | Sandbox feedback loop (`query_rewrite`), unresolved handling, full ablation | not started |
 | 5 | FastAPI + side-by-side diff UI | not started |
 | 6 | Polish: ablation results, limitations, demo script | not started |
+
+### Evaluation dataset
+
+`src/trf/eval/dataset/` holds 15 hand-built tutorials (6 Pydantic v1→v2, 8 pandas 1.x→2.x, 1 mixed).
+Each has four files:
+
+| file | content |
+|---|---|
+| `NAME.md` | the outdated tutorial (valid in its original pinned environment) |
+| `NAME.fixed.md` | hand-fixed reference: identical prose, only code differs, passes in the target env |
+| `NAME.assertions.json` | per-block expected stdout / snippet, so "runs without error" is not the only criterion |
+| `NAME.symbols.json` | hand-labelled verdicts for the symbols that changed (84 in total) |
+
+`uv run python -m trf.eval.validate_dataset` proves the dataset is sound: every original must pass
+in its original environment (Python 3.10, pinned versions) and every reference must pass in the target
+environment (Python 3.12, pandas 2.3.3 / pydantic 2.13.5), with identical prose and block structure.
+All 15 pass both checks. Verdict labels: `renamed` (same thing, new name), `signature_changed`
+(argument / keyword / config key), `removed`, `behavior_changed` (same API, different semantics).
+
+### Eval configs and metrics
+
+`uv run python -m trf.eval.run_eval` (resumable; logs every run as JSON under `runs/eval/`):
+
+| config | meaning |
+|---|---|
+| `0_original` | untouched tutorial in the target env (how broken is it?) |
+| `1_llm_only` | LLM rewrites each block from its own knowledge: no retrieval, no verdicts |
+| `2_dense` | + dense retrieval, cited diff verdicts |
+| `3_hybrid` | + BM25 fused with RRF |
+| `4_full` | + cross-encoder rerank, version boost, symbol index |
+| `5_loop` | + sandbox feedback loop (Phase 4) |
+
+Metrics (`trf/eval/metrics.py`): block and tutorial **pass rate** (primary; assertions included),
+symbol-level **diff accuracy** against the hand labels, **minimal-edit** ratio (original lines the
+system changed that the reference did not, plus prose segments altered), and **unresolved rate**.
+Note that a tutorial can pass without being modernised (Pydantic v2 still runs the deprecated
+`@validator`), which is why pass rate alone is not the whole story.
 
 ### Phase 1 baseline: how broken are the original tutorials?
 

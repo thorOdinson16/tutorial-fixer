@@ -306,3 +306,35 @@ def test_changelog_entry_still_requires_citation():
     with pytest.raises(ValueError):
         ChangeLogEntry(block_id="b", description="x")
     assert Symbol  # imported for completeness
+
+
+def test_diff_batches_symbols_and_survives_an_llm_failure():
+    from trf.llm import LLMError
+    from trf.state import Symbol
+
+    n = 8  # 2 batches of 6 and 2
+    syms = [Symbol(name=f"pandas.f{i}", library="pandas") for i in range(n)]
+    ev = {s.name: [chunk(f"c{i}", f"text {i}", "2.0.0", lib="pandas")] for i, s in enumerate(syms)}
+    s = prepared().model_copy(update={"symbols": syms, "evidence": ev})
+
+    class Flaky(FakeLLM):
+        def structured(self, prompt, schema, *, system=None, max_retries=2):
+            self.prompts.append(prompt)
+            if len(self.prompts) == 1:
+                raise LLMError("empty reply")
+            return self.outs.pop(0)
+
+    llm = Flaky(
+        DiffBatch(
+            verdicts=[
+                VerdictOut(symbol="pandas.f6", verdict="removed", evidence_chunk_ids=["c6"],
+                           confidence=0.9)
+            ]
+        )
+    )  # fmt: skip
+    out = make_diff(llm, RETRIEVAL)(s)
+    assert len(llm.prompts) == 2
+    assert "pandas.f0" in llm.prompts[0] and "pandas.f6" not in llm.prompts[0]
+    assert "pandas.f6" in llm.prompts[1] and "pandas.f0" not in llm.prompts[1]
+    assert [v.symbol for v in out["verdicts"]] == ["pandas.f6"]  # batch 2 still produced a verdict
+    assert any("LLM failed" in w for w in out["warnings"])  # batch 1 failure is recorded

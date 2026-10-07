@@ -1,8 +1,9 @@
 """Classify each used symbol: unchanged | renamed | signature_changed | removed | behavior_changed.
 
-One batched LLM call per library (reasoning models pay a fixed thinking cost per call, so per-symbol
-calls are prohibitively slow). Every recorded verdict must cite evidence chunk ids that were
-actually shown to the model; verdicts that cite nothing valid are dropped, never kept as claims.
+Symbols go to the LLM in small batches per library (6 each): reasoning models pay a large fixed
+thinking cost per call, so per-symbol calls are far too slow, but one giant prompt overflows the
+context window. Every recorded verdict must cite evidence chunk ids that were actually shown to
+the model; verdicts that cite nothing valid are dropped, never kept as claims.
 A symbol with no recorded verdict means "no change claimed" (unchanged).
 
 Without retrieval (the LLM-only baseline) there is nothing to cite, so this stage is skipped.
@@ -15,13 +16,13 @@ from collections.abc import Callable
 from pydantic import BaseModel, Field
 
 from trf.config import PipelineFlags
-from trf.llm import LLM
+from trf.llm import LLM, LLMError
 from trf.state import Chunk, DiffVerdict, GraphState, Symbol, VerdictKind
 
 MAX_SYMBOLS = 30
-MAX_CHUNKS = 24
-CHUNKS_PER_SYMBOL = 4
-CHUNK_CHARS = 700
+SYMBOLS_PER_CALL = 6  # small batches: reasoning models need prompt + thinking + answer to fit
+CHUNKS_PER_SYMBOL = 3
+CHUNK_CHARS = 600
 SKIP_KINDS = {"cli", "module"}
 
 SYSTEM = (
@@ -95,45 +96,56 @@ def make_diff(
             ][:MAX_SYMBOLS]  # fmt: skip
             if not target or not syms:
                 continue
-            per_symbol = {
-                s.name: [c.id for c in state.evidence[s.name][:CHUNKS_PER_SYMBOL]] for s in syms
-            }
-            by_id: dict[str, Chunk] = {}
-            for s in syms:
-                for c in state.evidence[s.name][:CHUNKS_PER_SYMBOL]:
-                    by_id.setdefault(c.id, c)
-            chunks = list(by_id.values())[:MAX_CHUNKS]
-            shown = {c.id for c in chunks}
+            known = {s.name for s in syms}
             if holder["llm"] is None:
                 holder["llm"] = LLM.from_env()
-            out = holder["llm"].structured(
-                build_prompt(lib, state.old_versions.get(lib), target, syms, chunks, per_symbol),
-                DiffBatch,
-                system=SYSTEM,
-            )
-            known = {s.name for s in syms}
-            for v in out.verdicts:
-                if v.symbol not in known:
-                    warnings.append(f"diff: dropped verdict for unknown symbol {v.symbol!r}")
+            for start in range(0, len(syms), SYMBOLS_PER_CALL):
+                batch = syms[start : start + SYMBOLS_PER_CALL]
+                per_symbol = {
+                    s.name: [c.id for c in state.evidence[s.name][:CHUNKS_PER_SYMBOL]]
+                    for s in batch
+                }
+                by_id: dict[str, Chunk] = {}
+                for s in batch:
+                    for c in state.evidence[s.name][:CHUNKS_PER_SYMBOL]:
+                        by_id.setdefault(c.id, c)
+                chunks = list(by_id.values())
+                shown = set(by_id)
+                try:
+                    out = holder["llm"].structured(
+                        build_prompt(
+                            lib, state.old_versions.get(lib), target, batch, chunks, per_symbol
+                        ),
+                        DiffBatch,
+                        system=SYSTEM,
+                    )
+                except LLMError as e:
+                    warnings.append(f"diff: LLM failed for {[s.name for s in batch]}: {e}")
                     continue
-                if v.verdict == "unchanged":
-                    continue
-                ids = [i for i in dict.fromkeys(v.evidence_chunk_ids) if i in shown]
-                if not ids:
-                    warnings.append(f"diff: dropped uncited verdict for {v.symbol} ({v.verdict})")
-                    continue
-                if v.confidence < min_confidence:
-                    warnings.append(f"diff: dropped low-confidence verdict for {v.symbol}")
-                    continue
-                verdicts.append(
-                    DiffVerdict(
-                        symbol=v.symbol,
-                        verdict=v.verdict,
-                        replacement=v.replacement,
-                        evidence_chunk_ids=ids,
-                        confidence=v.confidence,
-                    )  # fmt: skip
-                )
+                for v in out.verdicts:
+                    if v.symbol not in {s.name for s in batch} or v.symbol not in known:
+                        warnings.append(f"diff: dropped verdict for unknown symbol {v.symbol!r}")
+                        continue
+                    if v.verdict == "unchanged":
+                        continue
+                    ids = [i for i in dict.fromkeys(v.evidence_chunk_ids) if i in shown]
+                    if not ids:
+                        warnings.append(
+                            f"diff: dropped uncited verdict for {v.symbol} ({v.verdict})"
+                        )
+                        continue
+                    if v.confidence < min_confidence:
+                        warnings.append(f"diff: dropped low-confidence verdict for {v.symbol}")
+                        continue
+                    verdicts.append(
+                        DiffVerdict(
+                            symbol=v.symbol,
+                            verdict=v.verdict,
+                            replacement=v.replacement,
+                            evidence_chunk_ids=ids,
+                            confidence=v.confidence,
+                        )  # fmt: skip
+                    )
         return {"verdicts": verdicts, "warnings": [*state.warnings, *warnings]}
 
     return diff
