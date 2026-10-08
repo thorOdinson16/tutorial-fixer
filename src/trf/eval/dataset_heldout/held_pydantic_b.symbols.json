@@ -1,0 +1,6 @@
+{
+  "pydantic.Required": "removed",
+  "pydantic.ConstrainedFloat": "removed",
+  "pydantic.ConstrainedStr": "removed",
+  "pydantic.Field(unique_items)": "removed"
+}

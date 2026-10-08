@@ -1,0 +1,8 @@
+{
+  "b2": {"stdout_contains": ["Soup 2"]},
+  "b3": {"stdout_contains": ["21.5", "too hot"]},
+  "b4": {"stdout_contains": ["Salt None 12.5"]},
+  "b5": {"stdout_contains": ["SOUP", "code too long"]},
+  "b6": {"stdout_contains": ["[3, 1, 2]", "duplicate ids"]},
+  "b7": {"stdout_contains": ["g 250"]}
+}

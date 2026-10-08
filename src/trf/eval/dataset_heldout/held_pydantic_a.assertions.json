@@ -1,0 +1,8 @@
+{
+  "b2": {"stdout_contains": ["shipment 7"]},
+  "b3": {"stdout_contains": ["12", "too many pallets"]},
+  "b4": {"stdout_contains": ["Ana None"]},
+  "b5": {"stdout_contains": ["X1 None"]},
+  "b6": {"stdout_contains": ["rejected: True"]},
+  "b7": {"stdout_contains": ["N 3"]}
+}

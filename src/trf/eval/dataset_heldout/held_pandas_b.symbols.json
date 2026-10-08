@@ -1,0 +1,6 @@
+{
+  "pandas.Float64Index": "removed",
+  "pandas.Index.get_loc(method)": "removed",
+  "pandas.Series.between(inclusive)": "signature_changed",
+  "pandas.read_csv(mangle_dupe_cols)": "removed"
+}

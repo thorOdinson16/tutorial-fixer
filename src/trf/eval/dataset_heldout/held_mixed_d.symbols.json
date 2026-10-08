@@ -1,0 +1,6 @@
+{
+  "typing.Optional(default)": "behavior_changed",
+  "pydantic.BaseModel.Config.fields": "removed",
+  "pandas.DataFrame.groupby(squeeze)": "removed",
+  "pandas.Index.get_loc(method)": "removed"
+}

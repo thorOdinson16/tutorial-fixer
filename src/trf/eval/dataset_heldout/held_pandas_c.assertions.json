@@ -1,0 +1,8 @@
+{
+  "b2": {"stdout_contains": ["9 2023-01-09"]},
+  "b3": {"stdout_contains": ["[4.0, 6.5]"]},
+  "b4": {"stdout_contains": ["[False, True, True, True]"]},
+  "b5": {"stdout_contains": ["True"]},
+  "b6": {"stdout_contains": ["[1, 2]"]},
+  "b7": {"stdout_contains": ["['A', 'B']"]}
+}

@@ -1,0 +1,6 @@
+{
+  "pandas.Series.value_counts": "behavior_changed",
+  "pandas.Series.dt.weekofyear": "removed",
+  "pandas.date_range(closed)": "signature_changed",
+  "pandas.Timestamp(freq)": "removed"
+}

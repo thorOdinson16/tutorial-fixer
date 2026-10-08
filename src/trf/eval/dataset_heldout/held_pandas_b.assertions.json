@@ -1,0 +1,27 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "20"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "slot=1"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "[False, True, True, False]"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "['id', 'id.1']"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "{'x': 4, 'y': 5}"
+    ]
+  }
+}
