@@ -35,26 +35,43 @@ class Backend(Protocol):
 
 
 class OpenAIBackend:
-    """OpenAI-style /chat/completions. Also covers vLLM, OpenRouter, etc. via base_url."""
+    """OpenAI-style /chat/completions. Also covers vLLM, OpenRouter, etc. via base_url.
+
+    api.openai.com's newer models reject `max_tokens` (they want `max_completion_tokens`) and some
+    reject a custom temperature; compatible servers mostly still use `max_tokens`. The first
+    request uses the right form for the endpoint, and a 400 that names either parameter is retried
+    once with that parameter fixed or dropped.
+    """
 
     def __init__(self, s: LLMSettings):
         self.s = s
         self.url = (s.base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
+        self.token_param = (
+            "max_completion_tokens"
+            if self.url.startswith("https://api.openai.com/")
+            else "max_tokens"
+        )
+        self.send_temperature = True
 
     def complete(self, system, messages, *, json_schema=None) -> str:
         msgs = ([{"role": "system", "content": system}] if system else []) + messages
         headers = {"Authorization": f"Bearer {self.s.api_key}"} if self.s.api_key else {}
-        r = httpx.post(
-            self.url,
-            headers=headers,
-            timeout=self.s.timeout_s,
-            json={
-                "model": self.s.model,
-                "messages": msgs,
-                "temperature": self.s.temperature,
-                "max_tokens": self.s.max_tokens,
-            },
-        )
+        for _ in range(3):
+            body = {"model": self.s.model, "messages": msgs, self.token_param: self.s.max_tokens}
+            if self.send_temperature:
+                body["temperature"] = self.s.temperature
+            r = httpx.post(self.url, headers=headers, timeout=self.s.timeout_s, json=body)
+            if r.status_code == 400:
+                if "max_completion_tokens" in r.text and self.token_param == "max_tokens":
+                    self.token_param = "max_completion_tokens"
+                    continue
+                if "'max_tokens'" in r.text and self.token_param == "max_completion_tokens":
+                    self.token_param = "max_tokens"
+                    continue
+                if "temperature" in r.text and self.send_temperature:
+                    self.send_temperature = False
+                    continue
+            break
         if r.is_error:
             raise LLMError(f"{r.status_code}: {r.text[:500]}")
         return r.json()["choices"][0]["message"]["content"]

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from trf.config import ConfigError
+from trf.config import ConfigError, LLMSettings
 from trf.llm import LLM, LLMError
 
 
@@ -137,3 +137,70 @@ def test_ollama_empty_reply_is_an_error(monkeypatch):
     )
     with pytest.raises(LLMError, match="empty reply"):
         OllamaBackend(LLMSettings(provider="ollama", model="m")).complete(None, [])
+
+
+class _Resp:
+    def __init__(self, status, text="", payload=None):
+        self.status_code, self.text, self._p = status, text, payload
+
+    @property
+    def is_error(self):
+        return self.status_code >= 400
+
+    def json(self):
+        return self._p
+
+
+def _openai(monkeypatch, replies, base_url=None):
+    from trf.llm import OpenAIBackend
+
+    sent = []
+
+    def post(url, headers, timeout, json):
+        sent.append(json)
+        return replies.pop(0)
+
+    monkeypatch.setattr("trf.llm.httpx.post", post)
+    s = LLMSettings(provider="openai", model="m", api_key="k", base_url=base_url, max_tokens=77)
+    return OpenAIBackend(s), sent
+
+
+OK = _Resp(200, payload={"choices": [{"message": {"content": "hi"}}]})
+
+
+def test_openai_official_endpoint_uses_max_completion_tokens(monkeypatch):
+    b, sent = _openai(monkeypatch, [OK])
+    assert b.complete("sys", [{"role": "user", "content": "x"}]) == "hi"
+    assert sent[0]["max_completion_tokens"] == 77 and "max_tokens" not in sent[0]
+
+
+def test_openai_compatible_server_keeps_max_tokens(monkeypatch):
+    b, sent = _openai(monkeypatch, [OK], base_url="http://localhost:8000/v1")
+    b.complete(None, [])
+    assert sent[0]["max_tokens"] == 77 and "max_completion_tokens" not in sent[0]
+
+
+def test_openai_switches_param_and_drops_unsupported_temperature(monkeypatch):
+    replies = [
+        _Resp(400, "Unsupported parameter: 'max_tokens' ... Use 'max_completion_tokens'"),
+        _Resp(400, "Unsupported value: 'temperature' does not support 0"),
+        OK,
+    ]
+    b, sent = _openai(monkeypatch, replies, base_url="http://localhost:8000/v1")
+    assert b.complete(None, []) == "hi"
+    assert "max_completion_tokens" in sent[1] and "temperature" in sent[1]
+    assert "temperature" not in sent[2]
+    # the fixes are remembered: the next call goes out right the first time
+    monkeypatch.setattr("trf.llm.httpx.post", lambda *a, **k: (sent.append(k["json"]), OK)[1])
+    b.complete(None, [])
+    assert "max_completion_tokens" in sent[3] and "temperature" not in sent[3]
+
+
+def test_openai_other_errors_still_raise(monkeypatch):
+    import pytest
+
+    from trf.llm import LLMError
+
+    b, _ = _openai(monkeypatch, [_Resp(401, "bad key")])
+    with pytest.raises(LLMError, match="401"):
+        b.complete(None, [])
