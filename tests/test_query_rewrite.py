@@ -212,3 +212,29 @@ def test_block_broken_by_its_own_edit_is_retried_under_the_same_verdicts():
     assert out["error_symbols"] == {"b2": ["pandas.read_csv"]}
     assert out["fresh_symbols"] == []  # nothing new to retrieve; only the rewrite is retried
     assert any("retrying b2" in w for w in out["warnings"])
+
+
+def test_bad_argument_value_is_traced_to_the_call_that_received_it():
+    err = (
+        "OSError: 'seaborn-whitegrid' is not a valid package style, path of style file, "
+        "URL of style file, or library style name (library styles are listed in `style.available`)"
+    )
+    src = "import matplotlib.pyplot as plt\nplt.style.use('seaborn-whitegrid')\nplt.plot([1])\n"
+    used = {"matplotlib.pyplot.style.use", "matplotlib.pyplot.plot"}
+    got = symbols_from_error(err, src, ["matplotlib"], [], used)
+    assert [n for n, _ in got] == ["matplotlib.pyplot.style.use"]
+    assert symbols_from_error(err, src, ["matplotlib"], []) == []  # needs the block's used symbols
+    assert symbols_from_error("ValueError: 'zzz' is bad", src, ["matplotlib"], [], used) == []
+
+
+def test_node_uses_the_block_s_own_symbols_for_bad_values():
+    b = CodeBlock.new(
+        "b1", "import matplotlib.pyplot as plt\nplt.style.use('seaborn-whitegrid')\n"
+    ).model_copy(
+        update={
+            "status": "failing",
+            "last_error": "OSError: 'seaborn-whitegrid' is not a valid style",
+        }
+    )
+    out = make_query_rewrite()(GraphState(blocks=[b], libraries=["matplotlib"]))
+    assert out["error_symbols"] == {"b1": ["matplotlib.pyplot.style.use"]}

@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
+from trf.nodes.extract import analyze_blocks
 from trf.state import GraphState, Symbol, SymbolKind
 
 _ATTR_OBJ = re.compile(
@@ -79,8 +80,34 @@ class _Resolver:
         return f"{lib}.{recv}.{attr}" if recv else f"{lib}.{attr}"
 
 
+_QUOTED = re.compile(r"""['"]([^'"\n]{3,60})['"]""")
+
+
+def symbols_for_bad_value(error: str, source: str, used: set[str]) -> list[str]:
+    """The call a bad ARGUMENT VALUE was passed to.
+
+    `OSError: 'seaborn-whitegrid' is not a valid ... style` names no function, but the value sits in
+    `plt.style.use('seaborn-whitegrid')`: find the source lines containing a quoted value from the
+    error and return the symbols this block uses whose name is called on those lines.
+    """
+    literals = [m for m in _QUOTED.findall(error.splitlines()[-1] if error else "") if m.strip()]
+    if not literals:
+        return []
+    lines = [ln for ln in source.splitlines() if any(lit in ln for lit in literals)]
+    hits = []
+    for sym in sorted(used):
+        tail = _tail(sym)
+        if any(re.search(rf"\b{re.escape(tail)}\s*\(", ln) for ln in lines):
+            hits.append(sym)
+    return hits
+
+
 def symbols_from_error(
-    error: str, source: str, libraries: list[str], known: list[Symbol]
+    error: str,
+    source: str,
+    libraries: list[str],
+    known: list[Symbol],
+    used: set[str] | None = None,
 ) -> list[tuple[str, SymbolKind]]:
     """Library symbols implicated by one error, as (name, kind), most specific first."""
     r = _Resolver(libraries, known, source)
@@ -133,6 +160,10 @@ def symbols_from_error(
         elif lib and (word[:1].isupper() or word.startswith("__")):
             owner = "BaseModel." if word.startswith("__") else ""
             add(f"{lib}.{owner}{word}", "attribute")
+    # a bad argument value: the error quotes a literal that is passed to a library call
+    if not found and used:
+        for name in symbols_for_bad_value(error, source, used):
+            add(name, "function")
     # last resort: a symbol we already know is named in the error text
     if not found:
         words = _words(error.strip().splitlines()[-1] if error.strip() else "")  # message only
@@ -152,13 +183,16 @@ def make_query_rewrite() -> Callable[[GraphState], dict]:
         error_symbols: dict[str, list[str]] = {}
         warnings = list(state.warnings)
         traces = {r.block_id: r.traceback for r in state.run_results if r.traceback}
+        used_by_block = analyze_blocks(state.blocks).used
         unexplained: list[tuple[str, str]] = []
 
         for b in state.blocks:
             if b.status != "failing" or b.lang != "python":
                 continue
             error = "\n".join(filter(None, [traces.get(b.id), b.last_error]))
-            hits = symbols_from_error(error, b.source, state.libraries, [*known, *new])
+            hits = symbols_from_error(
+                error, b.source, state.libraries, [*known, *new], used_by_block.get(b.id)
+            )
             if not hits:
                 edited = [
                     e.symbol
