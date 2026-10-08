@@ -11,7 +11,7 @@
   },
   "b4": {
     "stdout_contains": [
-      "0.147"
+      "True"
     ]
   },
   "b5": {

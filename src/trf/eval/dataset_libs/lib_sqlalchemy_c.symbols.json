@@ -1,6 +1,6 @@
 {
-  "sqlalchemy.Table.exists": "removed",
   "sqlalchemy.*.has_table": "removed",
-  "sqlalchemy.engine.ResultProxy": "removed",
+  "sqlalchemy.select": "signature_changed",
+  "sqlalchemy.engine.Row.__getitem__": "behavior_changed",
   "sqlalchemy.engine.Connection.scalar": "behavior_changed"
 }

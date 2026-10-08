@@ -17,37 +17,31 @@ Create the table in memory and insert three contacts in one transaction:
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String
 engine = create_engine("sqlite://")
 meta = MetaData()
-contacts = Table("contacts", meta,
-    Column("id", Integer, primary_key=True),
-    Column("name", String(50)),
-    Column("phone", String(20)),
-)
+contacts = Table("contacts", meta, Column("id", Integer, primary_key=True),
+                 Column("name", String(50)), Column("phone", String(20)))
 meta.create_all(engine)
+rows = [{"name": "Ana", "phone": "555-0101"}, {"name": "Ben", "phone": "555-0102"}, {"name": "Cy", "phone": None}]
 with engine.begin() as conn:
-    conn.execute(contacts.insert(), [
-        {"name": "Ana", "phone": "555-0101"},
-        {"name": "Ben", "phone": "555-0102"},
-        {"name": "Cy", "phone": None},
-    ])
+    conn.execute(contacts.insert(), rows)
     print("contacts:", len(conn.execute(contacts.select()).fetchall()))
 ```
 
-Check that the table exists, two different ways:
+Check that the table exists:
 
 ```python
 from sqlalchemy import inspect
-print("table exists:", inspect(engine).has_table("contacts"))
-print("exists:", inspect(engine).has_table("contacts"))
+found = inspect(engine).has_table("contacts")
+print("table exists:", found)
 ```
 
-Return the contacts that have a phone number, typed with the legacy result class:
+Return the contacts that have a phone number, sorted by name:
 
 ```python
-from sqlalchemy.engine import Result
-def with_phone(conn) -> Result:
-    return conn.execute(contacts.select().where(contacts.c.phone.isnot(None)).order_by(contacts.c.name))
+from sqlalchemy import select
 with engine.connect() as conn:
-    print([row.name for row in with_phone(conn).fetchall()])
+    stmt = select(contacts.c.name, contacts.c.phone).where(contacts.c.phone.isnot(None))
+    rows = conn.execute(stmt.order_by(contacts.c.name)).fetchall()
+print([row._mapping["name"] for row in rows])
 ```
 
 Read the first contact in name order:

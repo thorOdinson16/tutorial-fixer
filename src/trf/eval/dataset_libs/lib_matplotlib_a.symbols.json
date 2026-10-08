@@ -1,0 +1,6 @@
+{
+  "matplotlib.pyplot.style.use": "renamed",
+  "matplotlib.cm.get_cmap": "removed",
+  "matplotlib.axes.Axes.grid(b)": "signature_changed",
+  "matplotlib.backend_bases.FigureCanvasBase.tostring_rgb": "removed"
+}

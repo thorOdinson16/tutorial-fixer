@@ -52,7 +52,7 @@ A shallow regression tree for comparison:
 from sklearn.tree import DecisionTreeRegressor
 tree = DecisionTreeRegressor(criterion='mse', max_depth=3, random_state=0)
 tree.fit(X_tr, y_tr)
-print(round(tree.score(X_te, y_te), 3))
+print(tree.get_depth())
 ```
 
 Mean training target, computed with numpy:

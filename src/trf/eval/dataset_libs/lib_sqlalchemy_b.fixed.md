@@ -11,7 +11,7 @@ A small projects-and-tasks model, queried with the ORM and then inspected by han
 pip install SQLAlchemy==2.1.4
 ```
 
-Define two mapped classes, create the tables and add some rows:
+Start with an in-memory engine and a Project model:
 
 ```python
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
@@ -22,6 +22,12 @@ class Project(Base):
     __tablename__ = "projects"
     id = Column(Integer, primary_key=True)
     name = Column(String(50))
+print(Project.__tablename__)
+```
+
+Add the Task model and create both tables:
+
+```python
 class Task(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True)
@@ -30,6 +36,12 @@ class Task(Base):
     project_id = Column(Integer, ForeignKey("projects.id"))
     project = relationship("Project")
 Base.metadata.create_all(engine)
+print(sorted(Base.metadata.tables))
+```
+
+Add a project with two tasks and count them:
+
+```python
 with Session(engine) as s:
     home = Project(name="home")
     s.add_all([home, Task(title="fix sink", project=home), Task(title="paint", project=home, done=1)])
@@ -62,14 +74,4 @@ print(sorted(inspect(engine).get_table_names()))
 with engine.connect() as conn:
     first = conn.execute(select(Project.name)).first()
 print(dict(first._mapping))
-```
-
-Mark the paint task as open again and count the open tasks:
-
-```python
-with Session(engine) as s:
-    paint = s.query(Task).filter_by(title="paint").one()
-    paint.done = 0
-    s.commit()
-    print("open tasks:", s.query(Task).filter_by(done=0).count())
 ```

@@ -1,0 +1,6 @@
+{
+  "matplotlib.cm.cmap_d": "removed",
+  "matplotlib.cm.register_cmap": "removed",
+  "matplotlib.pyplot.cm.get_cmap": "removed",
+  "matplotlib.backend_bases.FigureCanvasBase.tostring_rgb": "removed"
+}

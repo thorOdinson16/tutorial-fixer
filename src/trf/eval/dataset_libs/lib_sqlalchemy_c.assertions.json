@@ -6,8 +6,7 @@
   },
   "b3": {
     "stdout_contains": [
-      "table exists: True",
-      "exists: True"
+      "table exists: True"
     ]
   },
   "b4": {

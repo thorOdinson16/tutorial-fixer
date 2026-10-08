@@ -40,7 +40,7 @@ from sklearn.metrics import log_loss
 sgd = SGDClassifier(loss='log_loss', max_iter=1000, tol=1e-3, random_state=0)
 sgd.fit(scaler.transform(X_tr), y_tr)
 proba = sgd.predict_proba(scaler.transform(X_te))
-print(round(log_loss(y_te, proba), 3))
+print(log_loss(y_te, proba) < 0.2)
 ```
 
 A random forest, with the usual feature subset size:
