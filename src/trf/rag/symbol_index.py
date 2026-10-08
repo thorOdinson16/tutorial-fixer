@@ -20,6 +20,18 @@ _CODE_IDENT = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+|[A-Za-z_]\w*_\w+")
 _ARG = re.compile(r"^(?P<callee>.+)\((?P<arg>\w+)\)$")
 
 
+# How release notes and tutorials usually spell the root of a symbol path.
+ALIAS_FOR_PREFIX = {"numpy": "np", "pandas": "pd", "matplotlib.pyplot": "plt"}
+
+
+def aliased_name(name: str) -> str | None:
+    """`numpy.float` -> `np.float`, `matplotlib.pyplot.style.use` -> `plt.style.use`."""
+    for prefix, alias in sorted(ALIAS_FOR_PREFIX.items(), key=lambda kv: -len(kv[0])):
+        if name == prefix or name.startswith(prefix + "."):
+            return alias + name[len(prefix) :]
+    return None
+
+
 def _keys_for(name: str) -> set[str]:
     parts = name.split(".")
     keys = {name, parts[-1]}
@@ -58,11 +70,13 @@ class SymbolIndex:
             return [(m["arg"], 1.0)]
         parts = [p for p in name.split(".") if p and p != "*"]
         qualified = ".".join(parts)  # chunks often say `pandas.datetime`: rarer than `datetime`
+        alias = aliased_name(qualified)  # ...or `np.float`, `pd.datetime`
         if parts and parts[0] == symbol.library:
             parts = parts[1:]
         if not parts:
             return []
-        keys = [(qualified, 1.0)] if qualified != ".".join(parts) else []
+        keys = [(alias, 1.0)] if alias else []
+        keys += [(qualified, 1.0)] if qualified != ".".join(parts) else []
         keys.append((".".join(parts), 1.0))
         if len(parts) > 2:
             keys.append((".".join(parts[-2:]), 0.8))

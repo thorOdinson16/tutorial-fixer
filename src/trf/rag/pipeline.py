@@ -22,7 +22,7 @@ from trf.rag.bm25 import BM25Index
 from trf.rag.dense import DenseIndex, Encoder, SentenceTransformerEncoder
 from trf.rag.hybrid import rrf
 from trf.rag.rerank import CrossEncoderScorer, PairScorer, applies_to_target, rerank
-from trf.rag.symbol_index import SymbolIndex
+from trf.rag.symbol_index import SymbolIndex, aliased_name
 from trf.state import Chunk, Symbol
 
 CANDIDATES = 50  # per retriever
@@ -49,6 +49,9 @@ def symbol_queries(symbol: Symbol) -> tuple[str, str]:
         return m["arg"] + " " + callee, f"What replaces the argument {m['arg']} of {callee}?"
     if symbol.kind == "cli":
         return symbol.name, f"What changed in the command {symbol.name}?"
+    alias = aliased_name(f"{symbol.library}.{short}") if qualify else None
+    if alias:  # release notes say `np.float`, not `numpy.float`
+        keywords = f"{keywords} {alias}"
     return keywords, f"What replaces {tail} in {symbol.library}?"
 
 

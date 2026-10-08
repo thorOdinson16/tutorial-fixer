@@ -83,7 +83,9 @@ def test_symbol_queries():
     assert symbol_queries(arg)[0] == "regex Field"
     assert symbol_queries(Symbol(name="pandas.*.append", library="pandas"))[0] == "append"
     # a bare top-level name is qualified: `pandas.datetime` is rarer (and what chunks say)
-    assert symbol_queries(Symbol(name="pandas.datetime", library="pandas"))[0] == "pandas.datetime"
+    assert symbol_queries(Symbol(name="pandas.datetime", library="pandas"))[0] == (
+        "pandas.datetime pd.datetime"
+    )
     cfg = Symbol(name="pydantic.BaseModel.Config.orm_mode", library="pydantic", kind="config_key")
     assert "Config.orm_mode" in symbol_queries(cfg)[1] and "BaseModel" not in symbol_queries(cfg)[1]
 
@@ -99,3 +101,16 @@ def test_retrieve_node_fills_evidence_and_skips_other_libs():
     ev = node(state)["evidence"]
     assert set(ev) == {"pandas.DataFrame.append"}
     assert ev["pandas.DataFrame.append"][0].id in {"append", "append-old"}
+
+
+def test_symbol_queries_and_index_know_the_conventional_aliases():
+    from trf.rag.pipeline import symbol_queries
+    from trf.rag.symbol_index import aliased_name
+    from trf.state import Symbol
+
+    assert aliased_name("numpy.float") == "np.float"
+    assert aliased_name("matplotlib.pyplot.style.use") == "plt.style.use"
+    assert aliased_name("pandas.DataFrame.append") == "pd.DataFrame.append"
+    assert aliased_name("sqlalchemy.select") is None
+    keywords, _ = symbol_queries(Symbol(name="numpy.float", library="numpy"))
+    assert "np.float" in keywords and "numpy.float" in keywords

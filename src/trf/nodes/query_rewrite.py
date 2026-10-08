@@ -31,6 +31,21 @@ _NO_MODULE = re.compile(r"No module named '(?P<mod>[\w.]+)'")
 _BACKTICK = re.compile(r"`(?P<name>[\w.]+)`")
 
 
+# An error that is the library's way of reporting a changed API but names no function: the
+# regex (matched against the error text), the library it belongs to, and the symbol it implies
+# (`{1}` is the regex's first group). Kept short and to errors that are unambiguous.
+ERROR_HINTS: list[tuple[str, str, str]] = [
+    (r"tuple indices must be integers or slices, not str", "sqlalchemy",
+     "sqlalchemy.engine.Row.__getitem__"),
+    (r"Join target, typically a FROM expression", "sqlalchemy", "sqlalchemy.orm.Query.join"),
+    (r"Textual SQL expression .* should be explicitly declared as text", "sqlalchemy",
+     "sqlalchemy.text"),
+    (r"keyword grid_(\w+) is not recognized", "matplotlib", "matplotlib.axes.Axes.grid({1})"),
+    (r"'(?:Engine|Connection)' object has no attribute 'execute'", "sqlalchemy",
+     "sqlalchemy.engine.Engine.execute"),
+]  # fmt: skip
+
+
 def _words(text: str) -> set[str]:
     return set(re.findall(r"[A-Za-z_]\w*", text))
 
@@ -160,6 +175,10 @@ def symbols_from_error(
         elif lib and (word[:1].isupper() or word.startswith("__")):
             owner = "BaseModel." if word.startswith("__") else ""
             add(f"{lib}.{owner}{word}", "attribute")
+    for pattern, lib, template in ERROR_HINTS:
+        m = re.search(pattern, error)
+        if m and lib in libraries:
+            add(template.replace("{1}", m.group(1) if m.groups() else ""), "function")
     # a bad argument value: the error quotes a literal that is passed to a library call
     if not found and used:
         for name in symbols_for_bad_value(error, source, used):

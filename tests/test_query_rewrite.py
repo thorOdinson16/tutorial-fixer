@@ -238,3 +238,16 @@ def test_node_uses_the_block_s_own_symbols_for_bad_values():
     )
     out = make_query_rewrite()(GraphState(blocks=[b], libraries=["matplotlib"]))
     assert out["error_symbols"] == {"b1": ["matplotlib.pyplot.style.use"]}
+
+
+def test_error_hints_name_the_api_behind_a_symbol_less_error():
+    assert names(
+        "TypeError: tuple indices must be integers or slices, not str", libs=["sqlalchemy"]
+    ) == ["sqlalchemy.engine.Row.__getitem__"]
+    assert names(
+        "ValueError: keyword grid_b is not recognized; valid keywords are []", libs=["matplotlib"]
+    ) == ["matplotlib.axes.Axes.grid(b)"]
+    # only when the library is actually in the tutorial
+    assert (
+        names("TypeError: tuple indices must be integers or slices, not str", libs=["pandas"]) == []
+    )
