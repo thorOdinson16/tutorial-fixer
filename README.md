@@ -86,7 +86,7 @@ make "runs without error" not the only pass criterion.
     nodes/           ingest, extract, resolve_versions, retrieve, diff, rewrite, sandbox, query_rewrite, assemble
     rag/             corpus, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
     sandbox_runner/  Dockerfile + in-container runner
-    eval/            dataset/ (15 tutorials), loader, baseline, validate_dataset, metrics, run_eval
+    eval/            dataset/ (15 tutorials), dataset_heldout/ (6), loader, baseline, validate_dataset, metrics, run_eval
     api/             FastAPI service + static/index.html (single-file UI)
   scripts/           retrieval_sanity.py, demo.py
   tests/
@@ -250,9 +250,33 @@ Reading it:
 - Diff accuracy (55% for `5_loop`) is the weakest number; much of the remaining failure is
   behaviour changes that produce wrong output without an error naming any symbol.
 
+### Held-out check
+
+`src/trf/eval/dataset_heldout/` has 6 further tutorials (3 pandas, 2 pydantic, 1 mixed) built after
+the system was tuned, around APIs the dev set does not use (`Float64Index`, `date_range(closed)`,
+`dt.weekofyear`, `Field(const)`, `ConstrainedInt`, `Required`, `get_loc(method)`, ...). Same
+validation as the dev set (`validate_dataset --dataset-dir ...`: originals pass in their old
+environment, references pass in the target one, 4 of each case's python blocks break on the new
+versions). Run once with no code changes in between:
+
+| config | cases | block pass | tutorial pass | diff acc. | changed recall | verdict exact | unrelated edits | prose edits | unresolved | LLM calls | s/case |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0_original | 6 | 29% | 0% | n/a | n/a | n/a | 0% | 0 | 0% | 0.0 | 1 |
+| 1_llm_only | 6 | 97% | 83% | n/a | n/a | n/a | 0% | 0 | 3% | 5.7 | 18 |
+| 2_dense | 6 | 76% | 0% | 71% | 61% | 57% | 0% | 0 | 24% | 6.5 | 41 |
+| 3_hybrid | 6 | 79% | 33% | 76% | 74% | 57% | 0% | 0 | 21% | 6.5 | 40 |
+| 4_full | 6 | 94% | 67% | 57% | 100% | 83% | 1% | 0 | 6% | 7.5 | 69 |
+| 5_loop | 6 | 97% | 83% | 56% | 100% | 83% | 1% | 0 | 3% | 7.8 | 32 |
+
+The ordering holds: dense < hybrid < full < loop, the loop adds a few points over `4_full`, and
+`5_loop` ties `1_llm_only` on pass rate (97% each) while its edits are cited. Changed-symbol recall
+reaches 100% for the full pipeline. Caveats: 6 tutorials (one block is about 3 points), one run,
+and the tutorials were written by a smaller model from a spec, so they are cleaner and shorter than
+real-world tutorials. They support "the dev-set result was not just tuning", not tight estimates.
+
 Caveats: the model, prompts and the matcher were debugged against this same 15-tutorial dataset
 while the eval ran (see below), so the numbers are tuned-on-the-test-set optimistic for
-`2_dense`..`5_loop`; `1_llm_only` was not tuned. There is no held-out set yet.
+`2_dense`..`5_loop`; `1_llm_only` was not tuned. The held-out check above is the untuned test.
 
 What the first runs fixed (all committed, with tests): the OpenAI backend now sends
 `max_completion_tokens`; the diff accepts symbols echoed with a ` (kind)` suffix; evidence is
