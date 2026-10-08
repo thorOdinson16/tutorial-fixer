@@ -91,6 +91,20 @@ def match_verdict(symbol: str | None, verdicts: dict[str, DiffVerdict]) -> DiffV
     return cands[0] if len(cands) == 1 else None
 
 
+def match_verdicts(symbol: str | None, verdicts: dict[str, DiffVerdict]) -> list[DiffVerdict]:
+    """Every verdict a reported symbol could stand for.
+
+    Exact match first. Otherwise all verdicts sharing the reported symbol's last component: a model
+    that reports `pandas.read_csv` after fixing `read_csv(squeeze)` and `read_csv(date_parser)` is
+    attributable to both, and the edit is then cited by the union of their evidence.
+    """
+    if not symbol:
+        return []
+    if symbol in verdicts:
+        return [verdicts[symbol]]
+    return [v for k, v in verdicts.items() if _last(k) == _last(symbol)]
+
+
 def update_pins(
     source: str, targets: dict[str, tuple[str, str]]
 ) -> tuple[str, list[tuple[str, str, str]]]:
@@ -262,24 +276,22 @@ def make_rewrite(
             if cited_mode:
                 by_sym = {v.symbol: v for v in mine}
                 for ch in changes:
-                    v = match_verdict(ch.symbol, by_sym)
-                    if v is None and len(mine) == 1:
-                        v = mine[0]
-                    if v is None:
+                    vs = match_verdicts(ch.symbol, by_sym)
+                    if not vs and len(mine) == 1:
+                        vs = [mine[0]]
+                    if not vs:
                         warnings.append(f"rewrite {b.id}: unattributed change dropped: {ch.symbol}")
                         continue
+                    ids = list(dict.fromkeys(i for v in vs for i in v.evidence_chunk_ids))
+                    sym = vs[0].symbol if len(vs) == 1 else (ch.symbol or vs[0].symbol)
                     block_entries.append(
                         ChangeLogEntry(
                             block_id=b.id,
-                            symbol=v.symbol,
-                            description=ch.description or f"{v.symbol}: {v.verdict}",
-                            evidence_chunk_ids=v.evidence_chunk_ids,
+                            symbol=sym,
+                            description=ch.description or f"{sym}: {vs[0].verdict}",
+                            evidence_chunk_ids=ids,
                             source_urls=sorted(
-                                {
-                                    chunk_by_id[c].source_url
-                                    for c in v.evidence_chunk_ids
-                                    if c in chunk_by_id
-                                }
+                                {chunk_by_id[c].source_url for c in ids if c in chunk_by_id}
                             ),
                         )  # fmt: skip
                     )

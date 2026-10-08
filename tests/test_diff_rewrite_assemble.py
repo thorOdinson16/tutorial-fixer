@@ -391,3 +391,52 @@ def test_symbol_terms_prefers_full_names_then_parts():
     t = symbol_terms(["pandas.read_csv(squeeze)", "pandas.DataFrame.append"])
     assert t[:2] == ["pandas.read_csv", "pandas.DataFrame.append"]
     assert "squeeze" in t and "append" in t and "read_csv" in t
+
+
+def test_ambiguous_callee_is_attributed_to_all_matching_verdicts_not_dropped():
+    from trf.nodes.rewrite import match_verdicts
+
+    vs = {
+        "pandas.read_csv(squeeze)": DiffVerdict(
+            symbol="pandas.read_csv(squeeze)", verdict="signature_changed",
+            evidence_chunk_ids=["a"], confidence=0.9),
+        "pandas.read_csv(date_parser)": DiffVerdict(
+            symbol="pandas.read_csv(date_parser)", verdict="signature_changed",
+            evidence_chunk_ids=["b"], confidence=0.9),
+        "pandas.DataFrame.append": DiffVerdict(
+            symbol="pandas.DataFrame.append", verdict="removed",
+            evidence_chunk_ids=["c"], confidence=0.9),
+    }  # fmt: skip
+    got = match_verdicts("pandas.read_csv", vs)
+    assert sorted(v.symbol for v in got) == [
+        "pandas.read_csv(date_parser)",
+        "pandas.read_csv(squeeze)",
+    ]
+    assert [v.symbol for v in match_verdicts("pandas.DataFrame.append", vs)] == [
+        "pandas.DataFrame.append"
+    ]
+    assert match_verdicts("pandas.unknown", vs) == []
+    assert match_verdicts(None, vs) == []
+
+
+def test_rewrite_keeps_an_edit_reported_under_the_bare_callee():
+    s = with_evidence(prepared())
+    s = s.model_copy(
+        update={
+            "verdicts": [
+                DiffVerdict(symbol="pandas.DataFrame.append", verdict="removed",
+                            evidence_chunk_ids=["pandas:wn:1"], confidence=0.9),
+                DiffVerdict(symbol="pandas.DataFrame.append(ignore_index)", verdict="signature_changed",
+                            evidence_chunk_ids=["pandas:wn:1"], confidence=0.9),
+            ]
+        }
+    )  # fmt: skip
+    new = 'import pandas as pd\ndf = pd.DataFrame({"a": [1]})\ndf = pd.concat([df, pd.DataFrame([{"a": 2}])])\nprint(len(df))\n'
+    llm = FakeLLM(
+        RewriteOut(code=new, changes=[ChangeOut(symbol="df.append", description="concat")])
+    )
+    out = make_rewrite(llm, RETRIEVAL)(s)
+    assert [b.source for b in out["blocks"] if b.id == "b2"] == [new]
+    assert out["change_log"] and all(
+        e.evidence_chunk_ids for e in out["change_log"] if e.kind == "api_change"
+    )
