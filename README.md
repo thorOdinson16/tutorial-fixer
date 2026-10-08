@@ -210,6 +210,17 @@ library symbol and 29 of those name one the dataset labels as changed. Most of t
 block, and output mismatches with no API clue in the message. This measures the error parser only,
 not whether the rewrites then pass.
 
+### Plumbing check with an oracle (not a model result)
+
+`scripts/oracle_check.py` swaps the LLM for an oracle that returns the dataset's hand labels (diff)
+and hand-fixed blocks (rewrite), with the rest real: retrieval over the built corpus and the Docker
+sandbox. In `forget` mode the oracle finds nothing on the first diff pass, so only the feedback loop
+can recover. Over all 15 tutorials (`5_loop`, max 3 loops): **73 of 82 blocks pass, 10 of 15
+tutorials fully**, versus 41% of blocks / 1 of 15 for the untouched tutorials. The 9 blocks left
+unresolved are errors that name no library symbol (changed validation behaviour, a changed default
+that alters output). This shows the wiring and the error parser work end to end and is an upper
+bound for those parts; it says nothing about how well a real model classifies or rewrites.
+
 ## Known limitations
 
 - The LLM eval has not run: no end-to-end numbers exist yet. A reasoning model on a small local GPU
