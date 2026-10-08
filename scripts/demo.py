@@ -39,8 +39,10 @@ def main() -> None:
     ap.add_argument("--max-loops", type=int, default=4)
     ap.add_argument(
         "--protect",
-        action="store_true",
-        help="never edit a block that already runs (runs the original in old and new envs first)",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="never edit a block that already runs (runs the original in its old and new "
+        "environments first); on by default, --no-protect to switch off",
     )
     ap.add_argument("--out", default="runs/demo")
     args = ap.parse_args()

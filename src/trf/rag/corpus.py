@@ -99,21 +99,26 @@ def load_corpus(path: Path) -> list[Chunk]:
     ]
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("command", choices=["build"])
-    ap.add_argument("libraries", nargs="*")
-    ap.add_argument("--refresh", action="store_true", help="re-download sources")
-    args = ap.parse_args()
+def build_all(names: list[str], *, refresh: bool = False) -> None:
+    """Download sources and write one corpus file per library."""
     cache = get_cache_dir()
-    fetch = cached_fetcher(cache, refresh=args.refresh)
-    for name in args.libraries or sorted(LIBRARIES):
+    fetch = cached_fetcher(cache, refresh=refresh)
+    for name in names:
         chunks = build_corpus(get_library(name), fetch)
         save_corpus(chunks, corpus_path(name, cache))
         by_type: dict[str, int] = {}
         for c in chunks:
             by_type[c.doc_type] = by_type.get(c.doc_type, 0) + 1
         print(f"{name}: {len(chunks)} chunks {by_type} -> {corpus_path(name, cache)}")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("command", choices=["build"])
+    ap.add_argument("libraries", nargs="*")
+    ap.add_argument("--refresh", action="store_true", help="re-download sources")
+    args = ap.parse_args()
+    build_all(args.libraries or sorted(LIBRARIES), refresh=args.refresh)
 
 
 if __name__ == "__main__":

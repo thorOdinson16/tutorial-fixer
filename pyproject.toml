@@ -11,6 +11,9 @@ dependencies = [
     "packaging>=24.0",
 ]
 
+[project.scripts]
+trf-serve = "trf.api.serve:main"  # needs the `api` extra: uv sync --extra rag --extra api
+
 [project.optional-dependencies]
 # Phase 2 retrieval stack (kept optional so Phase 0/1 stay light)
 rag = [
