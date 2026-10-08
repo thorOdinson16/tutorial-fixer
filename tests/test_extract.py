@@ -100,13 +100,13 @@ def test_extract_node_end_to_end():
     md = (
         "```bash\npip install pandas==1.3.5\n```\n"
         "```python\nimport pandas as pd\nimport numpy as np\n"
-        "from sklearn.linear_model import X\nimport os\ndf = pd.DataFrame()\n```\n"
+        "import requests\nimport os\ndf = pd.DataFrame()\n```\n"
     )
     s = GraphState(tutorial_md=md)
     s = s.model_copy(update=ingest(s))
     out = extract(s)
-    assert out["libraries"] == ["pandas"]
-    assert out["extra_packages"] == ["scikit-learn"]  # numpy ships with pandas
+    assert out["libraries"] == ["numpy", "pandas"]  # both registered
+    assert out["extra_packages"] == ["requests"]  # not registered; stdlib `os` is not a package
     kinds = {x.name: x.kind for x in out["symbols"]}
     assert kinds["pip install pandas==1.3.5"] == "cli"
     assert kinds["pandas.DataFrame"] == "class"

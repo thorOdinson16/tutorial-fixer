@@ -244,6 +244,80 @@ register_library(
 )
 
 
+_NP_DOC = f"{_GH}/numpy/numpy/main/doc/source"
+register_library(
+    LibraryConfig(
+        name="numpy",
+        pypi_name="numpy",
+        target_major=2,
+        changelog_sources=[
+            f"{_NP_DOC}/release/{v}-notes.rst"
+            for v in [f"1.{m}.0" for m in range(17, 27)] + ["2.0.0", "2.1.0", "2.2.0", "2.3.0"]
+        ],
+        migration_sources=[f"{_NP_DOC}/numpy_2_0_migration_guide.rst"],
+    )
+)
+
+_SA_DOC = f"{_GH}/sqlalchemy/sqlalchemy/main/doc/build/changelog"
+register_library(
+    LibraryConfig(
+        name="sqlalchemy",
+        pypi_name="SQLAlchemy",
+        target_major=2,
+        bundled_imports=["greenlet", "typing_extensions"],
+        changelog_sources=[
+            f"{_SA_DOC}/{n}.rst" for n in ("changelog_13", "changelog_14", "changelog_20")
+        ],
+        migration_sources=[
+            f"{_SA_DOC}/{n}.rst"
+            for n in ("migration_13", "migration_14", "migration_20", "whatsnew_20")
+        ],
+    )
+)
+
+_SK_DOC = f"{_GH}/scikit-learn/scikit-learn/main/doc/whats_new"
+register_library(
+    LibraryConfig(
+        name="sklearn",
+        pypi_name="scikit-learn",
+        target_major=1,
+        bundled_imports=["numpy", "scipy", "joblib", "threadpoolctl"],
+        changelog_sources=[
+            f"{_SK_DOC}/v{v}.rst"
+            for v in [f"0.{m}" for m in range(18, 25)] + [f"1.{m}" for m in range(0, 9)]
+        ],
+    )
+)
+
+_MPL_DOC = f"{_GH}/matplotlib/matplotlib/main/doc/api/prev_api_changes"
+_MPL_MISSING = {"3.2.0/behaviour", "3.10.0/behaviour", "3.11.0/behaviour"}
+register_library(
+    LibraryConfig(
+        name="matplotlib",
+        pypi_name="matplotlib",
+        target_major=3,
+        bundled_imports=[
+            "numpy",
+            "cycler",
+            "kiwisolver",
+            "PIL",
+            "pyparsing",
+            "dateutil",
+            "contourpy",
+            "fontTools",
+            "packaging",
+        ],  # fmt: skip
+        changelog_sources=[f"{_MPL_DOC}/api_changes_{v}.rst" for v in ("2.2.0", "3.0.0", "3.1.0")]
+        + [
+            f"{_MPL_DOC}/api_changes_{v}.0/{f}.rst"
+            for v in [f"3.{m}" for m in range(2, 12)]
+            for f in ("removals", "deprecations", "behaviour")
+            if f"{v}.0/{f}" not in _MPL_MISSING
+        ],
+    )
+)
+
+
 def get_cache_dir() -> Path:
     """Corpus, HTTP and embedding caches live here (override with TRF_CACHE_DIR)."""
     return Path(os.environ.get(ENV_PREFIX + "CACHE_DIR", ".trf_cache"))

@@ -26,23 +26,30 @@ from trf.state import GraphState
 OLD_EXTRA_REQS = ["numpy<2"]  # pandas 1.x is binary-incompatible with numpy 2
 DEFAULT_OLD_PYTHON = "3.10"  # old pandas/pydantic wheels exist for 3.10, not 3.12
 
-# (pandas version below which, python the old env needs). Wheels do not exist for newer Pythons.
-PANDAS_PYTHON = [("1.1.4", "3.8"), ("1.3.4", "3.9")]
+# Per library: (version below which, Python the old env needs). Old releases have no wheels for
+# newer Pythons, so the old environment runs on the oldest Python any pinned library requires.
+OLD_PYTHON_FOR: dict[str, list[tuple[str, str]]] = {
+    "pandas": [("1.1.4", "3.8"), ("1.3.4", "3.9")],
+    "numpy": [("1.19.0", "3.8"), ("1.21.3", "3.9")],
+    "sklearn": [("0.22.1", "3.7"), ("0.24.0", "3.8"), ("1.0.1", "3.9")],
+    "matplotlib": [("3.0.0", "3.6"), ("3.2.0", "3.7"), ("3.3.0", "3.8"), ("3.5.0", "3.9")],
+}
 
 Runner = Callable[[GraphState, str, SandboxSettings], GraphState]
 
 
 def old_python(old_versions: dict[str, str]) -> str:
     """The Python an old environment needs: the oldest any pinned library requires."""
-    v = old_versions.get("pandas")
-    if v:
+    needed = [Version(DEFAULT_OLD_PYTHON)]
+    for lib, version in old_versions.items():
         try:
-            for below, py in PANDAS_PYTHON:
-                if Version(v) < Version(below):
-                    return py
+            for below, py in OLD_PYTHON_FOR.get(lib, []):
+                if Version(version) < Version(below):
+                    needed.append(Version(py))
+                    break
         except InvalidVersion:
-            pass
-    return DEFAULT_OLD_PYTHON
+            continue
+    return str(min(needed))
 
 
 def run_in_env(s: GraphState, mode: str, settings: SandboxSettings) -> GraphState:

@@ -39,9 +39,21 @@ def cached_fetcher(cache_dir: Path, *, refresh: bool = False) -> Fetcher:
     return fetch
 
 
+_URL_VERSIONS = [  # (pattern, how to build "X.Y.Z" from its groups)
+    (r"/v(\d+\.\d+\.\d+)\.rst$", lambda g: g[0]),  # pandas whatsnew/v1.4.0.rst
+    (r"/release/(\d+\.\d+\.\d+)-notes\.rst$", lambda g: g[0]),  # numpy
+    (r"/whats_new/v(\d+\.\d+)\.rst$", lambda g: f"{g[0]}.0"),  # scikit-learn
+    (r"/api_changes_(\d+\.\d+\.\d+)(?:/[\w]+)?\.rst$", lambda g: g[0]),  # matplotlib
+    (r"/(?:migration|whatsnew|changelog)_(\d)(\d+)\.rst$", lambda g: f"{g[0]}.{g[1]}.0"),  # sqla
+]
+
+
 def _version_from_url(url: str) -> str | None:
-    m = re.search(r"/v(\d+\.\d+\.\d+)\.rst$", url)
-    return m.group(1) if m else None
+    for pattern, build in _URL_VERSIONS:
+        m = re.search(pattern, url)
+        if m:
+            return build(m.groups())
+    return None
 
 
 def build_corpus(cfg: LibraryConfig, fetch: Fetcher, *, max_chars: int = 1000) -> list[Chunk]:
