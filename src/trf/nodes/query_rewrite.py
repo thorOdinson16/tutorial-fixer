@@ -152,6 +152,7 @@ def make_query_rewrite() -> Callable[[GraphState], dict]:
         error_symbols: dict[str, list[str]] = {}
         warnings = list(state.warnings)
         traces = {r.block_id: r.traceback for r in state.run_results if r.traceback}
+        unexplained: list[tuple[str, str]] = []
 
         for b in state.blocks:
             if b.status != "failing" or b.lang != "python":
@@ -159,10 +160,7 @@ def make_query_rewrite() -> Callable[[GraphState], dict]:
             error = "\n".join(filter(None, [traces.get(b.id), b.last_error]))
             hits = symbols_from_error(error, b.source, state.libraries, [*known, *new])
             if not hits:
-                warnings.append(
-                    f"query_rewrite: no library symbol identified for {b.id} "
-                    f"({(b.last_error or 'unknown error')[:120]})"
-                )
+                unexplained.append((b.id, b.last_error or "unknown error"))
                 continue
             error_symbols[b.id] = [n for n, _ in hits]
             for name, kind in hits:
@@ -179,6 +177,13 @@ def make_query_rewrite() -> Callable[[GraphState], dict]:
                             first_seen_in_block=b.id,
                         )
                     )
+        for block_id, err in unexplained:
+            # a cascade from an earlier failing block needs no warning if that block is handled
+            if "downstream effect" in err and error_symbols:
+                continue
+            warnings.append(
+                f"query_rewrite: no library symbol identified for {block_id} ({err[:120]})"
+            )
         return {
             "symbols": [*state.symbols, *new],
             "error_symbols": error_symbols,

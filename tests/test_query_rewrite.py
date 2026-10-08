@@ -170,3 +170,24 @@ def test_last_resort_match_only_looks_at_the_error_message_not_the_source_echo()
     tb = "Traceback (most recent call last):\n    df['p'] = df['p'].astype(float)\nValueError: could not convert string to float: '$2.50'"
     assert names(tb, known=known) == []
     assert names("ValueError: bad astype call", known=known) == ["pandas.Series.astype"]
+
+
+def test_downstream_cascade_is_not_warned_about_when_the_root_block_is_handled():
+    root = CodeBlock.new("b2", "df.append(r)\n").model_copy(
+        update={
+            "status": "failing",
+            "last_error": "AttributeError: 'DataFrame' object has no attribute 'append'",
+        }
+    )
+    cascade = CodeBlock.new("b3", "print(df)\n").model_copy(
+        update={
+            "status": "failing",
+            "last_error": "NameError: name 'df' is not defined [after earlier failure in b2; may be a downstream effect]",
+        }
+    )
+    out = make_query_rewrite()(GraphState(blocks=[root, cascade], libraries=["pandas"]))
+    assert out["error_symbols"] == {"b2": ["pandas.DataFrame.append"]}
+    assert out["warnings"] == []
+    # with nothing else explained, the same cascade IS reported
+    alone = make_query_rewrite()(GraphState(blocks=[cascade], libraries=["pandas"]))
+    assert any("b3" in w for w in alone["warnings"])
