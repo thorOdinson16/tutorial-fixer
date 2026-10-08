@@ -3,9 +3,10 @@
 For every failing block, read its traceback (or last error line) and name the library symbol that
 broke, in the same naming scheme `extract` uses (`pandas.DataFrame.append`,
 `pandas.read_csv(squeeze)`, `pydantic.BaseModel.dict`). Symbols that are new to the run are added
-to `state.symbols`. `state.fresh_symbols` lists the symbols that still need evidence or a verdict
-(new ones, plus known ones the diff stage had cleared as unchanged but that demonstrably break), so
-`retrieve` and `diff` only do work for them. `state.error_symbols` maps each failing
+to `state.symbols`. `state.fresh_symbols` lists every symbol the failing blocks implicate
+(new ones, ones the diff stage had cleared as unchanged, and ones whose verdict was applied but the
+block still fails), so `retrieve` (which also queries with the error message) and `diff` only do
+work for them. `state.error_symbols` maps each failing
 block to its symbols, which `rewrite` uses to pick the verdicts to apply.
 
 This is deterministic pattern matching, not an LLM call: errors from API rot are regular, and a
@@ -197,7 +198,6 @@ def make_query_rewrite() -> Callable[[GraphState], dict]:
         known = list(state.symbols)
         names = {s.name for s in known}
         new: list[Symbol] = []
-        judged = {v.symbol for v in state.verdicts}
         fresh: list[str] = []
         error_symbols: dict[str, list[str]] = {}
         warnings = list(state.warnings)
@@ -228,7 +228,7 @@ def make_query_rewrite() -> Callable[[GraphState], dict]:
                 continue
             error_symbols[b.id] = [n for n, _ in hits]
             for name, kind in hits:
-                if name not in judged and name not in fresh:
+                if name not in fresh:  # a symbol that still fails needs fresh evidence, too
                     fresh.append(name)
                 if name not in names and name not in {s.name for s in new}:
                     lib = name.split(".")[0].split("(")[0]

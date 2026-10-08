@@ -118,7 +118,7 @@ def test_node_known_symbol_without_verdict_is_fresh_but_not_duplicated():
     assert len(out["symbols"]) == 1
 
 
-def test_node_symbol_with_verdict_is_not_fresh():
+def test_node_symbol_with_verdict_that_still_fails_is_fresh_again():
     s = _state("AttributeError: 'DataFrame' object has no attribute 'append'")
     s = s.model_copy(
         update={
@@ -135,7 +135,8 @@ def test_node_symbol_with_verdict_is_not_fresh():
     )
     out = make_query_rewrite()(s)
     assert out["error_symbols"] == {"b1": ["pandas.DataFrame.append"]}
-    assert out["fresh_symbols"] == []
+    # the verdict was applied and the block still fails: look again, with the error as a clue
+    assert out["fresh_symbols"] == ["pandas.DataFrame.append"]
 
 
 def test_node_warns_and_skips_unexplained_error():
