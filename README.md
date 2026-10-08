@@ -274,6 +274,33 @@ reaches 100% for the full pipeline. Caveats: 6 tutorials (one block is about 3 p
 and the tutorials were written by a smaller model from a spec, so they are cleaner and shorter than
 real-world tutorials. They support "the dev-set result was not just tuning", not tight estimates.
 
+### Spot check on six real tutorials
+
+Six public tutorials (four pandas, two FastAPI/pydantic; 2020-2021) were fetched, converted to
+Markdown with a small stdlib script and run through `5_loop` with `scripts/demo.py`. No hand
+references, no assertions, so "passing" only means the block ran; this is a smoke test, not a
+score. Python blocks passing in the target environment, as-is -> after the pipeline:
+
+| tutorial | blocks | as-is | after | blocks edited |
+|---|---|---|---|---|
+| pandas "add row" (snippets) | 3 | 0 | 2 | 3 |
+| pandas "add row" guide | 12 | 8 | 11 | 2 |
+| pandas tutorial (notebook style) | 161 | 149 | 153 | 6 |
+| pandas for beginners | 52 | 45 | 47 | 1 |
+| FastAPI + pydantic schemas | 8 | 3 | 3 | 1 |
+| FastAPI project tutorial | 36 | 21 | 21 | 0 |
+
+What it showed: real-world rot is sparse (92% of the notebook tutorial's blocks already ran), the
+`DataFrame.append` -> `pd.concat` edits were correct and cited, and most remaining failures are not
+version rot but tutorial defects the pipeline correctly leaves `unresolved`: a snippet that uses
+`pandas` or `List` without importing it, imports of the tutorial's own project modules
+(`app.schemas`), a database or test client the sandbox cannot provide. Weaknesses found: it also
+renamed `applymap` to `map` (deprecated, still works) and added `na_action='ignore'` to a
+`Series.map` call, both unnecessary edits that cited real changelog entries; project-local imports
+(`app`) are treated as pip packages to install; and the original cannot be run in its "old"
+environment for a 2021 tutorial (`pandas==1.2.4` has no Python 3.10 wheel), so there is no
+original-vs-updated output comparison yet.
+
 Caveats: the model, prompts and the matcher were debugged against this same 15-tutorial dataset
 while the eval ran (see below), so the numbers are tuned-on-the-test-set optimistic for
 `2_dense`..`5_loop`; `1_llm_only` was not tuned. The held-out check above is the untuned test.
