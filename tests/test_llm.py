@@ -204,3 +204,41 @@ def test_openai_other_errors_still_raise(monkeypatch):
     b, _ = _openai(monkeypatch, [_Resp(401, "bad key")])
     with pytest.raises(LLMError, match="401"):
         b.complete(None, [])
+
+
+def test_openai_retries_network_blips_and_server_errors(monkeypatch):
+    import httpx
+
+    monkeypatch.setattr("trf.llm.time.sleep", lambda s: None)
+    calls = []
+
+    def post(url, headers, timeout, json):
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ConnectError("getaddrinfo failed")
+        if len(calls) == 2:
+            return _Resp(503, "overloaded")
+        return OK
+
+    monkeypatch.setattr("trf.llm.httpx.post", post)
+    from trf.llm import OpenAIBackend
+
+    b = OpenAIBackend(LLMSettings(provider="openai", model="m", api_key="k"))
+    assert b.complete(None, []) == "hi"
+    assert len(calls) == 3
+
+
+def test_openai_gives_up_after_repeated_network_errors(monkeypatch):
+    import httpx
+
+    monkeypatch.setattr("trf.llm.time.sleep", lambda s: None)
+
+    def post(*a, **k):
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr("trf.llm.httpx.post", post)
+    from trf.llm import OpenAIBackend
+
+    b = OpenAIBackend(LLMSettings(provider="openai", model="m", api_key="k"))
+    with pytest.raises(LLMError, match="network error"):
+        b.complete(None, [])

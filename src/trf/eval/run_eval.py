@@ -266,6 +266,9 @@ def main() -> None:
     ap.add_argument("--cases", nargs="*", default=None)
     ap.add_argument("--out", default="runs/eval")
     ap.add_argument("--force", action="store_true", help="re-run even if a log exists")
+    ap.add_argument(
+        "--retry-errors", action="store_true", help="re-run cases whose log recorded a crash"
+    )
     ap.add_argument("--max-loops", type=int, default=4)
     args = ap.parse_args()
 
@@ -282,8 +285,11 @@ def main() -> None:
         for case in cases:
             target = out / cfg / f"{case}.json"
             if target.exists() and not args.force:
-                print(f"[skip] {cfg}/{case} (log exists)")
-                continue
+                crashed = bool(json.loads(target.read_text(encoding="utf-8")).get("error"))
+                if not (args.retry_errors and crashed):
+                    print(f"[skip] {cfg}/{case} (log exists)")
+                    continue
+                print(f"[retry] {cfg}/{case} (previous run crashed)")
             log, out_md, change_md = run_one(
                 case, cfg, llm=llm, sandbox_settings=sandbox_settings, max_loops=args.max_loops
             )

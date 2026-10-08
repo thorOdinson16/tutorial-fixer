@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -32,6 +33,9 @@ class Backend(Protocol):
     def complete(
         self, system: str | None, messages: list[Message], *, json_schema: dict | None = None
     ) -> str: ...
+
+
+RETRY_DELAYS = (2, 5, 15, 45, 90)  # seconds between attempts on transient failures
 
 
 class OpenAIBackend:
@@ -56,11 +60,23 @@ class OpenAIBackend:
     def complete(self, system, messages, *, json_schema=None) -> str:
         msgs = ([{"role": "system", "content": system}] if system else []) + messages
         headers = {"Authorization": f"Bearer {self.s.api_key}"} if self.s.api_key else {}
-        for _ in range(3):
+        failures = 0
+        for _ in range(8):
             body = {"model": self.s.model, "messages": msgs, self.token_param: self.s.max_tokens}
             if self.send_temperature:
                 body["temperature"] = self.s.temperature
-            r = httpx.post(self.url, headers=headers, timeout=self.s.timeout_s, json=body)
+            try:
+                r = httpx.post(self.url, headers=headers, timeout=self.s.timeout_s, json=body)
+            except httpx.TransportError as e:  # DNS blip, reset, timeout: wait and try again
+                failures += 1
+                if failures > len(RETRY_DELAYS):
+                    raise LLMError(f"network error after {failures} attempts: {e}") from e
+                time.sleep(RETRY_DELAYS[failures - 1])
+                continue
+            if r.status_code in (429, 500, 502, 503, 504) and failures < len(RETRY_DELAYS):
+                failures += 1
+                time.sleep(RETRY_DELAYS[failures - 1])
+                continue
             if r.status_code == 400:
                 if "max_completion_tokens" in r.text and self.token_param == "max_tokens":
                     self.token_param = "max_completion_tokens"
