@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import difflib
 
+from trf.nodes.diagnose import diagnose
 from trf.state import ChangeLogEntry, CodeBlock, GraphState, Segment
 
 STATUS_LABEL = {
@@ -130,7 +131,11 @@ def build_change_log(state: GraphState, blocks: list[CodeBlock]) -> str:
             "These blocks still fail and need manual attention:",
             "",
         ]
-        lines += [f"- **{b.id}**: {b.last_error}" for b in unresolved]
+        for b in unresolved:
+            lines.append(f"- **{b.id}**: {b.last_error}")
+            d = diagnose(b.last_error)
+            if d:
+                lines.append(f"  - Likely cause: {d.text}.")
         lines.append("")
     if state.warnings:
         lines += ["## Pipeline warnings", ""] + [f"- {w}" for w in state.warnings] + [""]

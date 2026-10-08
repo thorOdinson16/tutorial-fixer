@@ -47,7 +47,7 @@ markers = [
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
-extend-exclude = ["src/trf/eval/dataset", "src/trf/eval/dataset_heldout"]  # tutorials are test data; never reformat
+extend-exclude = ["src/trf/eval/dataset", "src/trf/eval/dataset_heldout", "src/trf/eval/dataset_libs"]  # tutorials are test data; never reformat
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
