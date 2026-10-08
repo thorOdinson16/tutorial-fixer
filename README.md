@@ -5,7 +5,9 @@ produces an updated version whose code **actually runs against current library v
 Verification by execution is the core of the project: nothing is reported as passing unless it ran
 in a sandbox.
 
-v1 scope: Python tutorials, Pydantic v1 → v2 and pandas 1.x → 2.x (pluggable via `LibraryConfig`).
+Scope: Python tutorials and six libraries, each with its own release-note corpus: **pandas** 1.x → 2.x,
+**pydantic** v1 → v2, **NumPy** 1.x → 2.x, **SQLAlchemy** 1.x → 2.x, **scikit-learn** 0.x → 1.x and
+**Matplotlib** 2.x/3.x → latest 3.x. Libraries are pluggable: see [Adding a library](#adding-a-library).
 Input: a Markdown file. Output: updated Markdown plus a change log (what changed, why, source
 links, run status per code block).
 
@@ -177,11 +179,14 @@ over it is small here. The end-to-end pass rate in the Phase 3/4 eval is the rea
 
 ```bash
 uv sync --extra rag --extra api
-uv run python -m trf.rag.corpus build            # once
-export TRF_LLM_PROVIDER=... TRF_LLM_MODEL=... TRF_LLM_API_KEY=...   # see SETUP.md
-uv run python scripts/demo.py pandas_sales_analysis                   # one tutorial, CLI summary
-uv run uvicorn trf.api.main:app                                       # service + UI on :8000
+# put TRF_LLM_PROVIDER / TRF_LLM_MODEL / TRF_LLM_API_KEY in .env (see SETUP.md)
+uv run trf-serve                       # checks Docker + model + corpora, builds what is missing,
+                                       # starts the service and opens the UI on :8000
+uv run python scripts/demo.py pandas_sales_analysis   # or: one tutorial from the command line
 ```
+
+`scripts/demo.py` and the service leave blocks that already run untouched by default (the
+`protect_working_blocks` precheck, described in Results); `--no-protect` switches that off.
 
 The UI (`/`) takes pasted or uploaded Markdown and shows, per code block, the original and updated
 code side by side, a status badge, the error of any unresolved block, and every change with its
@@ -343,6 +348,28 @@ token generated), refuses to send it if the running total in `TRF_SPEND_LEDGER`
 the cap, and raises `BudgetExceeded`, which no stage catches. `run_eval` then stops without logging
 the case as a crash. Billed tokens are counted per run (`tokens` in each eval log, printed by
 `demo.py`). Cached responses cost nothing.
+
+## Adding a library
+
+A library is one `register_library(LibraryConfig(...))` call in `src/trf/config.py`:
+
+```python
+register_library(LibraryConfig(
+    name="numpy",                 # the import name
+    pypi_name="numpy",            # what pip installs
+    target_major=2,               # latest release within this major is the target
+    bundled_imports=[],           # modules pip installs with it (not extra packages)
+    changelog_sources=[...],      # raw .rst/.md release notes on GitHub, one per minor version
+    migration_sources=[...],      # raw migration guides
+))
+```
+
+Then: add the file-name pattern that carries each source's version to `_URL_VERSIONS` in
+`rag/corpus.py`, the wheel/Python limits of old releases to `OLD_PYTHON_FOR` in `nodes/precheck.py`,
+build the corpus (`uv run python -m trf.rag.corpus build NAME`), and write a few tutorials for
+`eval/` (see `scripts/check_case.py`). Everything else (symbol extraction, retrieval, diff,
+rewrite, sandbox, loop) is library-independent. The corpus is only as old as the sources you list:
+a change that predates them (Matplotlib before 2.2, say) cannot be cited.
 
 ## Known limitations
 
