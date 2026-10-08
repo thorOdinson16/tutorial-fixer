@@ -173,7 +173,10 @@ def test_rewrite_rejects_change_without_attributable_citation():
     s = with_evidence(prepared()).model_copy(
         update={"verdicts": [V, V.model_copy(update={"symbol": "pandas.DataFrame"})]}
     )
-    unattributed = RewriteOut(code=GOOD.code, changes=[ChangeOut(symbol="something.else")])
+    # an edit that touches only the print line: none of the block's verdicts appears in it
+    edited = s.blocks[1].source.replace("print(len(df))", "print(len(df) + 0)")
+    assert edited != s.blocks[1].source
+    unattributed = RewriteOut(code=edited, changes=[ChangeOut(symbol="something.else")])
     out = make_rewrite(FakeLLM(unattributed), RETRIEVAL)(s)
     assert out["blocks"][1].source == s.blocks[1].source  # kept: edit could not be cited
     assert any("without cited evidence" in w for w in out["warnings"])
@@ -440,3 +443,57 @@ def test_rewrite_keeps_an_edit_reported_under_the_bare_callee():
     assert out["change_log"] and all(
         e.evidence_chunk_ids for e in out["change_log"] if e.kind == "api_change"
     )
+
+
+def test_attribute_by_diff_links_an_edit_to_the_verdicts_it_touched():
+    from trf.nodes.rewrite import attribute_by_diff
+
+    def v(sym, cid):
+        return DiffVerdict(symbol=sym, verdict="removed", evidence_chunk_ids=[cid], confidence=0.9)
+
+    mine = [
+        v("sqlalchemy.engine.Engine.execute", "c1"),
+        v("sqlalchemy.MetaData(bind)", "c2"),
+        v("sqlalchemy.select", "c3"),
+    ]
+    old = "meta = MetaData(bind=engine)\nrows = engine.execute(text)\nprint(rows)\n"
+    new = (
+        "meta = MetaData()\nwith engine.connect() as c:\n    rows = c.execute(text)\nprint(rows)\n"
+    )
+    got = attribute_by_diff(old, new, mine)
+    assert sorted(x.symbol for x in got) == [
+        "sqlalchemy.MetaData(bind)",
+        "sqlalchemy.engine.Engine.execute",
+    ]  # `select` was not in the changed lines
+    assert attribute_by_diff(old, old, mine) == []  # no edit, nothing to attribute
+
+
+def test_rewrite_keeps_a_correct_edit_when_the_model_names_no_symbol():
+    s = with_evidence(prepared())
+    s = s.model_copy(
+        update={
+            "verdicts": [
+                DiffVerdict(
+                    symbol="pandas.DataFrame.append",
+                    verdict="removed",
+                    evidence_chunk_ids=["pandas:wn:1"],
+                    confidence=0.9,
+                ),
+                DiffVerdict(
+                    symbol="pandas.DataFrame.append(ignore_index)",
+                    verdict="signature_changed",
+                    evidence_chunk_ids=["pandas:wn:1"],
+                    confidence=0.9,
+                ),
+            ]
+        }
+    )
+    new = (
+        'import pandas as pd\ndf = pd.DataFrame({"a": [1]})\n'
+        'df = pd.concat([df, pd.DataFrame([{"a": 2}])])\nprint(len(df))\n'
+    )
+    llm = FakeLLM(RewriteOut(code=new, changes=[]))  # the model reported nothing
+    out = make_rewrite(llm, RETRIEVAL)(s)
+    assert [b.source for b in out["blocks"] if b.id == "b2"] == [new]
+    entries = [e for e in out["change_log"] if e.block_id == "b2" and e.kind == "api_change"]
+    assert entries and all(e.evidence_chunk_ids for e in entries)

@@ -16,6 +16,7 @@ packages appended to the install command.
 from __future__ import annotations
 
 import ast
+import difflib
 import re
 from collections.abc import Callable
 
@@ -104,6 +105,33 @@ def match_verdicts(symbol: str | None, verdicts: dict[str, DiffVerdict]) -> list
     if symbol in verdicts:
         return [verdicts[symbol]]
     return [v for k, v in verdicts.items() if _last(k) == _last(symbol)]
+
+
+def attribute_by_diff(old: str, new: str, mine: list[DiffVerdict]) -> list[DiffVerdict]:
+    """Verdicts whose symbol appears in the lines an edit actually changed.
+
+    A model often makes the right edit without saying which library symbol it concerned. An edit is
+    still attributable when a verdict's symbol (its last name, or its keyword argument) occurs in
+    the ORIGINAL lines that were replaced or removed: the evidence behind that verdict is then the
+    evidence for the change. Nothing is attributed to a verdict the edit did not touch.
+    """
+    old_lines, new_lines = old.splitlines(), new.splitlines()
+    touched: list[str] = []
+    for tag, i1, i2, _, _ in difflib.SequenceMatcher(
+        None, old_lines, new_lines, autojunk=False
+    ).get_opcodes():
+        if tag != "equal":
+            touched += old_lines[i1:i2]
+    text = "\n".join(touched)
+    out = []
+    for v in mine:
+        names = {_last(v.symbol)}
+        m = re.search(r"\((\w+)\)$", v.symbol)
+        if m:
+            names.add(m.group(1))
+        if any(re.search(rf"(?<![\w]){re.escape(n)}(?![\w])", text) for n in names if n):
+            out.append(v)
+    return out
 
 
 def update_pins(
@@ -281,6 +309,8 @@ def make_rewrite(
                     if not vs and len(mine) == 1:
                         vs = [mine[0]]
                     if not vs:
+                        vs = attribute_by_diff(b.source, code, mine)
+                    if not vs:
                         warnings.append(f"rewrite {b.id}: unattributed change dropped: {ch.symbol}")
                         continue
                     ids = list(dict.fromkeys(i for v in vs for i in v.evidence_chunk_ids))
@@ -296,6 +326,22 @@ def make_rewrite(
                             ),
                         )  # fmt: skip
                     )
+                if not block_entries:
+                    vs = attribute_by_diff(b.source, code, mine)
+                    if vs:  # the model listed no usable change, but the edited lines name verdicts
+                        ids = list(dict.fromkeys(i for v in vs for i in v.evidence_chunk_ids))
+                        names = ", ".join(v.symbol for v in vs)
+                        block_entries.append(
+                            ChangeLogEntry(
+                                block_id=b.id,
+                                symbol=vs[0].symbol if len(vs) == 1 else None,
+                                description=f"Updated code using {names}.",
+                                evidence_chunk_ids=ids,
+                                source_urls=sorted(
+                                    {chunk_by_id[c].source_url for c in ids if c in chunk_by_id}
+                                ),
+                            )  # fmt: skip
+                        )
                 if not block_entries:
                     warnings.append(f"rewrite {b.id}: change without cited evidence rejected")
                     continue
