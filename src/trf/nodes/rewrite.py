@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from trf.config import LIBRARIES, PipelineFlags
 from trf.llm import LLM, LLMError
+from trf.nodes.diff import snippet, symbol_terms
 from trf.nodes.extract import analyze_blocks, extra_packages_for, strip_magics
 from trf.state import ChangeLogEntry, Chunk, CodeBlock, DiffVerdict, GraphState
 
@@ -150,6 +151,7 @@ def build_prompt(
     versions = "; ".join(f"{lib} {old or '?'} -> {new}" for lib, (old, new) in libs.items())
     parts = [f"Update this code for: {versions}."]
     if verdicts:
+        terms = symbol_terms([v.symbol for v in verdicts])
         lines = [
             f"- {v.symbol}: {v.verdict}"
             + (f" -> use `{v.replacement}`" if v.replacement else "")
@@ -159,7 +161,10 @@ def build_prompt(
         parts.append("Evidence-backed library changes to apply:\n" + "\n".join(lines))
         parts.append(
             "EVIDENCE:\n"
-            + "\n".join(f"[{c.id}] {_clip(c.text)}" for c in chunks[:MAX_EVIDENCE_CHUNKS])
+            + "\n".join(
+                f"[{c.id}] {snippet(c.text, terms, CHUNK_CHARS)}"
+                for c in chunks[:MAX_EVIDENCE_CHUNKS]
+            )
         )
     else:
         parts.append(

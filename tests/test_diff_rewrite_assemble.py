@@ -369,3 +369,25 @@ def test_diff_accepts_symbols_echoed_with_their_kind_suffix():
     )
     out = make_diff(llm, RETRIEVAL)(s)
     assert [v.symbol for v in out["verdicts"]] == ["pandas.DataFrame.append"]
+
+
+def test_snippet_centres_on_the_symbol_instead_of_cutting_the_head():
+    from trf.nodes.diff import snippet, symbol_terms
+
+    filler = "Removed unrelated thing number one. " * 25
+    text = filler + "Removed the `pandas.datetime` submodule. " + filler
+    assert len(text) > 1500
+    head = " ".join(text.split())[:600]
+    assert "pandas.datetime" not in head  # the old head-clip would have lost it
+    out = snippet(text, symbol_terms(["pandas.datetime"]), 600)
+    assert "pandas.datetime" in out and len(out) <= 640
+    assert snippet("short text", ["x"], 600) == "short text"
+    assert snippet(text, ["nomatch"], 600) == head[:599] + "\u2026"
+
+
+def test_symbol_terms_prefers_full_names_then_parts():
+    from trf.nodes.diff import symbol_terms
+
+    t = symbol_terms(["pandas.read_csv(squeeze)", "pandas.DataFrame.append"])
+    assert t[:2] == ["pandas.read_csv", "pandas.DataFrame.append"]
+    assert "squeeze" in t and "append" in t and "read_csv" in t

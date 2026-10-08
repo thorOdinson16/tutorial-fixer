@@ -77,11 +77,54 @@ def _clip(text: str, n: int = CHUNK_CHARS) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
+def symbol_terms(names: list[str]) -> list[str]:
+    """Strings to look for in evidence text, most specific first: `pandas.datetime`, `datetime`."""
+    full, short = [], []
+    for name in names:
+        dotted = re.sub(r"\(.*\)$", "", name)
+        arg = re.search(r"\((\w+)\)$", name)
+        full.append(dotted)
+        short.append(dotted.split(".", 1)[-1])
+        short.append(dotted.split(".")[-1])
+        if arg:
+            short.append(arg[1])
+    return list(dict.fromkeys(t for t in [*full, *short] if len(t) >= 3))
+
+
+def snippet(text: str, terms: list[str], n: int = CHUNK_CHARS, max_windows: int = 3) -> str:
+    """Whitespace-normalised text cut to ~n chars around where `terms` are mentioned.
+
+    A head-clip loses the one sentence that matters when a long changelog chunk lists many
+    removals. With no match (or a short text) this is the plain head-clip.
+    """
+    t = " ".join(text.split())
+    if len(t) <= n:
+        return t
+    hits: list[int] = []
+    for term in terms:
+        m = re.search(rf"(?<![\w]){re.escape(term)}(?![\w])", t, re.I)
+        if m and not any(abs(m.start() - h) < n // 4 for h in hits):
+            hits.append(m.start())
+        if len(hits) == max_windows:
+            break
+    if not hits:
+        return t[: n - 1] + "…"
+    w = n // len(hits)
+    parts, floor = [], 0
+    for pos in sorted(hits):
+        start = max(floor, pos - w // 3)
+        end = min(len(t), start + w)
+        parts.append(("…" if start > 0 else "") + t[start:end] + ("…" if end < len(t) else ""))
+        floor = end
+    return " ".join(parts)
+
+
 def build_prompt(
     library: str, old: str | None, target: str, symbols: list[Symbol], chunks: list[Chunk],
     per_symbol: dict[str, list[str]], observed: dict[str, str] | None = None,
 ) -> str:  # fmt: skip
-    ev = "\n".join(f"[{c.id}] {_clip(c.text)}" for c in chunks)
+    terms = symbol_terms([s.name for s in symbols])
+    ev = "\n".join(f"[{c.id}] {snippet(c.text, terms)}" for c in chunks)
     syms = "\n".join(
         f"- {s.name} ({s.kind}); candidate evidence: {', '.join(per_symbol[s.name])}"
         for s in symbols
