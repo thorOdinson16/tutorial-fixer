@@ -24,6 +24,10 @@ class FakePipeline:
         self.asked.append(symbol.name)
         return [SimpleNamespace(chunk=EV)]
 
+    def retrieve(self, query, *, keywords, symbol, old, target, k):
+        self.asked.append(f"error-query:{symbol.name}")
+        return [SimpleNamespace(chunk=EV)]
+
 
 def resolve(state):
     return {"old_versions": {"pandas": "1.3.5"}, "target_versions": {"pandas": "2.3.3"}}

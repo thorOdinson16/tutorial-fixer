@@ -114,3 +114,63 @@ def test_symbol_queries_and_index_know_the_conventional_aliases():
     assert aliased_name("sqlalchemy.select") is None
     keywords, _ = symbol_queries(Symbol(name="numpy.float", library="numpy"))
     assert "np.float" in keywords and "numpy.float" in keywords
+
+
+def test_error_query_strips_the_exception_name_and_keeps_quoted_values():
+    from trf.nodes.retrieve import error_query
+
+    q, kw = error_query(
+        "OSError: 'seaborn-white' is not a valid package style, path of style file, URL of style file"
+    )
+    assert q.startswith("'seaborn-white' is not a valid") and "OSError" not in q
+    assert kw == "seaborn-white"
+    q2, kw2 = error_query("AttributeError: 'Engine' object has no attribute 'execute'")
+    assert kw2 == "Engine execute"
+    assert error_query("plain failure")[1] == "plain failure"
+
+
+def test_loop_retrieval_adds_chunks_found_by_the_error_message():
+    from trf.config import PipelineFlags
+    from trf.nodes.retrieve import make_retrieve
+    from trf.state import CodeBlock, GraphState
+
+    class Hit:
+        def __init__(self, c):
+            self.chunk = c
+
+    sym_chunk = chunk("m:1", "about plt.style.use in general", "3.0.0", lib="matplotlib")
+    err_chunk = chunk(
+        "m:2", "seaborn style names were renamed seaborn-v0_8", "3.6.0", lib="matplotlib"
+    )
+    asked = {}
+
+    class FakePipe:
+        def retrieve_for_symbol(self, symbol, *, old, target, k):
+            return [Hit(sym_chunk)]
+
+        def retrieve(self, query, *, keywords, symbol, old, target, k):
+            asked["query"], asked["keywords"] = query, keywords
+            return [Hit(err_chunk), Hit(sym_chunk)]
+
+    sym = Symbol(name="matplotlib.pyplot.style.use", library="matplotlib")
+    b = CodeBlock.new("b1", "plt.style.use('seaborn-white')").model_copy(
+        update={"status": "failing", "last_error": "OSError: 'seaborn-white' is not a valid style"}
+    )
+    state = GraphState(
+        blocks=[b],
+        symbols=[sym],
+        loop_count=1,
+        fresh_symbols=[sym.name],
+        error_symbols={"b1": [sym.name]},
+        target_versions={"matplotlib": "3.11.2"},
+    )
+    out = make_retrieve(lambda lib: FakePipe(), PipelineFlags())(state)
+    ids = [c.id for c in out["evidence"][sym.name]]
+    assert ids == ["m:1", "m:2"]  # symbol hit first, error hit added, duplicate dropped
+    assert asked["keywords"] == "seaborn-white"
+    # the first pass (loop_count 0) never uses the error query
+    asked.clear()
+    first = make_retrieve(lambda lib: FakePipe(), PipelineFlags())(
+        state.model_copy(update={"loop_count": 0})
+    )
+    assert [c.id for c in first["evidence"][sym.name]] == ["m:1"] and not asked

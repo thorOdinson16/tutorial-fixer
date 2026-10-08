@@ -1,12 +1,15 @@
 """Per-symbol retrieval: fill `state.evidence[symbol.name]` with the top chunks.
 
 In loop passes (loop_count > 0) only the symbols `query_rewrite` just derived from sandbox
-errors are retrieved; earlier evidence is kept.
+errors are retrieved; earlier evidence is kept. For those symbols the observed error message is a
+second query (its quoted values as keywords), because a symbol name alone often misses the note
+that explains the failure (`'seaborn-white' is not a valid style` -> the style-rename entry).
 The pipeline factory is injectable so the node is testable without models or a corpus.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from trf.config import PipelineFlags, get_cache_dir
@@ -30,6 +33,17 @@ def default_factory(flags: PipelineFlags) -> PipelineFactory:
     return factory
 
 
+ERROR_EXTRA = 3  # chunks added from the error-message query
+
+
+def error_query(error: str) -> tuple[str, str]:
+    """(natural-language query, keywords) from an error message: drop the exception class name."""
+    msg = " ".join(error.split())
+    msg = re.sub(r"^[\w.]*(?:Error|Exception|Warning):\s*", "", msg)[:300]
+    keywords = " ".join(re.findall(r"['\"]([^'\"]{3,60})['\"]", msg)) or msg
+    return msg, keywords
+
+
 def make_retrieve(
     factory: PipelineFactory | None = None, flags: PipelineFlags | None = None, k: int = 5
 ) -> Callable[[GraphState], dict]:
@@ -38,6 +52,12 @@ def make_retrieve(
     def retrieve(state: GraphState) -> dict:
         evidence = dict(state.evidence)
         fresh = set(state.fresh_symbols)
+        errors: dict[str, str] = {}
+        if state.loop_count > 0:
+            for b in state.blocks:
+                if b.status == "failing" and b.last_error:
+                    for name in state.error_symbols.get(b.id, []):
+                        errors.setdefault(name, b.last_error)
         for s in state.symbols:
             if state.loop_count > 0 and s.name not in fresh:
                 continue
@@ -47,7 +67,20 @@ def make_retrieve(
             hits = fac(s.library).retrieve_for_symbol(
                 s, old=state.old_versions.get(s.library), target=target, k=k
             )
-            evidence[s.name] = [h.chunk for h in hits]
+            chunks = [h.chunk for h in hits]
+            if s.name in errors:
+                query, keywords = error_query(errors[s.name])
+                extra = fac(s.library).retrieve(
+                    query,
+                    keywords=keywords,
+                    symbol=s,
+                    old=state.old_versions.get(s.library),
+                    target=target,
+                    k=ERROR_EXTRA,
+                )
+                seen = {c.id for c in chunks}
+                chunks += [h.chunk for h in extra if h.chunk.id not in seen]
+            evidence[s.name] = chunks
         return {"evidence": evidence}
 
     return retrieve
