@@ -344,6 +344,14 @@ def extract(state: GraphState) -> dict:
     }
 
 
+# Names a tutorial's own project modules usually have. PyPI holds unrelated packages under several
+# of these (`app`, `utils`, ...), so installing them would run foreign code and still not help.
+LOCAL_MODULE_NAMES = {
+    "app", "main", "utils", "config", "settings", "models", "schemas", "crud", "db", "database",
+    "core", "api", "tests", "src", "helpers", "common", "lib", "deps", "routers", "services",
+}  # fmt: skip
+
+
 def packages_for_imports(imported: set[str]) -> list[str]:
     """Third-party pip names for imported modules.
 
@@ -356,7 +364,10 @@ def packages_for_imports(imported: set[str]) -> list[str]:
         {
             _norm(IMPORT_TO_PYPI.get(m, m))
             for m in imported
-            if m not in stdlib and m not in LIBRARIES and m not in bundled
+            if m not in stdlib
+            and m not in LIBRARIES
+            and m not in bundled
+            and m not in LOCAL_MODULE_NAMES
         }
     )
 

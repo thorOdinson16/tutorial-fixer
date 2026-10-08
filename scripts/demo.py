@@ -37,6 +37,11 @@ def main() -> None:
     ap.add_argument("target", help="a dataset case name or a path to a Markdown tutorial")
     ap.add_argument("--config", default="5_loop", choices=sorted(CONFIGS))
     ap.add_argument("--max-loops", type=int, default=4)
+    ap.add_argument(
+        "--protect",
+        action="store_true",
+        help="never edit a block that already runs (runs the original in old and new envs first)",
+    )
     ap.add_argument("--out", default="runs/demo")
     args = ap.parse_args()
 
@@ -44,7 +49,10 @@ def main() -> None:
     state = state.model_copy(update={"max_loops": args.max_loops})
     llm = LLM.from_env()
     t0 = time.time()
-    final = run_graph(state, flags=CONFIGS[args.config], llm=llm)
+    flags = CONFIGS[args.config]
+    if args.protect:
+        flags = flags.model_copy(update={"protect_working_blocks": True})
+    final = run_graph(state, flags=flags, llm=llm)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

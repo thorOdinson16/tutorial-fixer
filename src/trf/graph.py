@@ -1,8 +1,8 @@
 """LangGraph wiring.
 
-ingest -> extract -> resolve_versions -> retrieve -> diff -> rewrite -> sandbox, then
-sandbox -> assemble (all pass / cap hit) or sandbox -> query_rewrite -> retrieve (failures,
-under cap); query_rewrite -> assemble when no failing block names a library symbol.
+ingest -> extract -> resolve_versions -> precheck (opt-in) -> retrieve -> diff -> rewrite ->
+sandbox, then sandbox -> assemble (all pass / cap hit) or sandbox -> query_rewrite -> retrieve
+(failures, under cap); query_rewrite -> assemble when no failing block names a library symbol.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from trf.nodes import (
     diff,
     extract,
     ingest,
+    precheck,
     query_rewrite,
     resolve_versions,
     retrieve,
@@ -37,6 +38,7 @@ def default_nodes(flags: PipelineFlags | None = None, llm: LLM | None = None) ->
         "ingest": ingest.ingest,
         "extract": extract.extract,
         "resolve_versions": resolve_versions.resolve_versions,
+        "precheck": precheck.make_precheck(flags),
         "retrieve": retrieve.make_retrieve(flags=flags),
         "diff": diff.make_diff(llm, flags),
         "rewrite": rewrite.make_rewrite(llm, flags),
@@ -85,7 +87,8 @@ def build_graph(
     for a, b in [
         ("ingest", "extract"),
         ("extract", "resolve_versions"),
-        ("resolve_versions", "retrieve"),
+        ("resolve_versions", "precheck"),
+        ("precheck", "retrieve"),
         ("retrieve", "diff"),
         ("diff", "rewrite"),
         ("rewrite", "sandbox"),

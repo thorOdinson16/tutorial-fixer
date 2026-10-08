@@ -1,7 +1,8 @@
 """Patch only the affected code blocks; prose is never touched.
 
 Pass 1 (loop_count == 0): rewrite python blocks that use a symbol with a non-unchanged verdict
-(or every python block in the no-retrieval LLM-only baseline). Later passes: only blocks the
+(or every python block in the no-retrieval LLM-only baseline), except blocks the precheck found
+already working (`protected_blocks`). Later passes: only blocks the
 sandbox reported failing, with their last error in the prompt and the verdicts for the symbols
 `query_rewrite` tied to that error (cited mode skips a failing block that has none).
 
@@ -239,7 +240,7 @@ def make_rewrite(
                 used = used | set(state.error_symbols.get(b.id, []))
             mine = [v for k, v in verdicts.items() if k in used]
             if state.loop_count == 0:
-                if cited_mode and not mine:
+                if b.id in state.protected_blocks or (cited_mode and not mine):
                     continue
             elif b.status != "failing" or (cited_mode and not mine):
                 continue

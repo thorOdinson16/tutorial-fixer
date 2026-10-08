@@ -15,12 +15,11 @@ from pathlib import Path
 from trf.config import SandboxSettings
 from trf.eval.loader import list_cases, load_case
 from trf.nodes import extract, ingest
+from trf.nodes.precheck import OLD_EXTRA_REQS, run_in_env  # noqa: F401  (re-exported)
 from trf.nodes.resolve_versions import resolve_versions
-from trf.nodes.sandbox import ensure_env_image, make_sandbox
 from trf.state import GraphState
 
-OLD_PYTHON = "3.10"  # old pandas/pydantic wheels exist for 3.10, not 3.12
-OLD_EXTRA_REQS = ["numpy<2"]  # pandas 1.x is binary-incompatible with numpy 2
+OLD_PYTHON = "3.10"  # default old-env Python; trf.nodes.precheck.old_python picks older ones
 
 
 def apply(state: GraphState, node) -> GraphState:
@@ -29,18 +28,7 @@ def apply(state: GraphState, node) -> GraphState:
 
 def run_state(s: GraphState, mode: str, settings: SandboxSettings) -> GraphState:
     """Execute an already ingested/extracted/resolved state in the target or old-pins env."""
-    builder = ensure_env_image
-    if mode == "old":
-        missing = [lib for lib in s.libraries if lib not in s.old_versions]
-        if missing:
-            raise SystemExit(f"no old version known for {missing}; cannot run control")
-        s = s.model_copy(update={"target_versions": dict(s.old_versions)})
-        settings = settings.model_copy(update={"python_version": OLD_PYTHON})
-
-        def builder(reqs, optional, st):
-            return ensure_env_image([*reqs, *OLD_EXTRA_REQS], optional, st)
-
-    return apply(s, make_sandbox(env_builder=builder, settings=settings))
+    return run_in_env(s, mode, settings)
 
 
 def prepare(s: GraphState) -> GraphState:

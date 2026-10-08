@@ -63,6 +63,7 @@ class PipelineFlags(BaseModel):
     use_version_boost: bool = True
     use_symbol_index: bool = True
     use_sandbox_loop: bool = True
+    protect_working_blocks: bool = False  # opt-in: never edit a block that already works
 
     @property
     def retrieval_enabled(self) -> bool:
