@@ -1,0 +1,28 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "contacts: 3"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "table exists: True",
+      "exists: True"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "['Ana', 'Ben']"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "Ana 555-0101"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "count 3"
+    ]
+  }
+}

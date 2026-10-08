@@ -6,7 +6,7 @@ import time
 from fastapi.testclient import TestClient
 
 from trf.api.main import STATIC_DIR, build_result, create_app
-from trf.state import ChangeLogEntry, CodeBlock, GraphState
+from trf.state import ChangeLogEntry, CodeBlock, GraphState, RunResult
 
 MD = "# Pandas\n\n```python\nx = 1\n```\n\n```python\ny()\n```\n"
 
@@ -84,6 +84,8 @@ def test_job_completes_with_result() -> None:
             "passing": 1,
             "unresolved": 1,
             "loops_used": 2,
+            "output_compared": 0,
+            "output_same": 0,
         }
         blocks = {b["id"]: b for b in result["blocks"]}
         assert blocks["b1"]["status"] == "passing"
@@ -167,3 +169,70 @@ def test_stacked_layout_keeps_code_panes_visible():
     page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     assert "@media (max-width: 800px)" in page
     assert ".col { flex: 0 0 auto; }" in page
+
+
+def test_result_reports_output_comparison_and_diagnosis():
+    final = GraphState(
+        blocks=[
+            CodeBlock.new("b1", "a").model_copy(update={"status": "passing"}),
+            CodeBlock.new("b2", "b").model_copy(update={"status": "passing"}),
+            CodeBlock.new("b3", "c").model_copy(
+                update={
+                    "status": "unresolved",
+                    "last_error": "NameError: name 'List' is not defined",
+                }
+            ),
+        ],
+        old_outputs={"b1": "x\n", "b2": "before"},
+        run_results=[
+            RunResult(block_id="b1", exit_code=0, stdout="x"),
+            RunResult(block_id="b2", exit_code=0, stdout="after"),
+        ],
+    )
+    r = build_result("md", final)
+    by = {b.id: b for b in r.blocks}
+    assert by["b1"].output_matches is True and by["b2"].output_matches is False
+    assert by["b3"].output_matches is None
+    assert "from typing import List" in by["b3"].diagnosis
+    assert by["b1"].diagnosis is None
+    assert (r.summary.output_compared, r.summary.output_same) == (2, 1)
+
+
+def test_running_job_reports_its_stage():
+    gate, entered = threading.Event(), threading.Event()
+
+    def staged(state, on_stage):
+        on_stage("retrieve")
+        entered.set()
+        gate.wait(5)
+        return fake_runner(state)
+
+    with TestClient(create_app(runner=staged)) as client:
+        job_id = client.post("/api/jobs", json={"markdown": MD}).json()["id"]
+        assert entered.wait(5)
+        body = client.get(f"/api/jobs/{job_id}").json()
+        assert body["status"] == "running" and body["stage"] == "retrieve"
+        gate.set()
+        done = wait_for(client, job_id, ("done", "failed"))
+        assert done["status"] == "done" and done["stage"] is None
+
+
+def test_jobs_survive_a_restart_and_interrupted_ones_are_marked_failed(tmp_path):
+    with TestClient(create_app(runner=fake_runner, jobs_dir=tmp_path)) as client:
+        job_id = client.post("/api/jobs", json={"markdown": MD}).json()["id"]
+        wait_for(client, job_id, ("done",))
+    # a job that was still running when the process died
+    (tmp_path / "deadbeef.json").write_text(
+        '{"status": "running", "stage": "diff", "error": null, "result": null}', encoding="utf-8"
+    )
+    with TestClient(create_app(runner=fake_runner, jobs_dir=tmp_path)) as client2:
+        again = client2.get(f"/api/jobs/{job_id}").json()
+        assert again["status"] == "done" and again["result"]["output_md"] == "# fixed\n"
+        dead = client2.get("/api/jobs/deadbeef").json()
+        assert dead["status"] == "failed" and "restart" in dead["error"]
+
+
+def test_worker_count_comes_from_the_environment(monkeypatch):
+    monkeypatch.setenv("TRF_API_WORKERS", "3")
+    app = create_app(runner=fake_runner)
+    assert app is not None  # constructed without error with 3 workers

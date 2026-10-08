@@ -1,0 +1,7 @@
+{
+  "b2": {"stdout_contains": ["3.14"]},
+  "b3": {"stdout_contains": ["10.0 float64"]},
+  "b4": {"stdout_contains": ["[0.25, 0.5, 0.75]"]},
+  "b5": {"stdout_contains": ["[1.0, 2.0, 4.0]"]},
+  "b6": {"stdout_contains": ["[1.0, 2.0, 3.0]"]}
+}

@@ -354,7 +354,7 @@ details ul { margin: 8px 0 0; padding-left: 20px; }
         if (!resp.ok) throw new Error("Could not read the job (HTTP " + resp.status + ").");
         return resp.json();
       }).then(function (job) {
-        setStatus(job.status);
+        setStatus(job.status + (job.stage ? ": " + job.stage : ""));
         if (job.status === "done" && job.result) {
           finish(jobId, job.result);
         } else if (job.status === "failed") {
@@ -497,7 +497,15 @@ details ul { margin: 8px 0 0; padding-left: 20px; }
     var badge = BADGE[block.status] || BADGE.pending;
     head.appendChild(el("span", "badge " + badge[0], badge[1]));
     if (block.changed) head.appendChild(el("span", "tag", "edited"));
+    if (block.output_matches === true) {
+      head.appendChild(el("span", "tag", "same output as the original"));
+    } else if (block.output_matches === false) {
+      head.appendChild(el("span", "badge " + BADGE.failing[0], "output differs from the original"));
+    }
     card.appendChild(head);
+    if (block.diagnosis) {
+      card.appendChild(el("p", "muted", "Likely cause: " + block.diagnosis + "."));
+    }
 
     if ((block.status === "failing" || block.status === "unresolved") && block.last_error) {
       card.appendChild(el("pre", "lasterr", block.last_error));
@@ -523,6 +531,9 @@ details ul { margin: 8px 0 0; padding-left: 20px; }
     var bar = el("div", "summary");
     bar.appendChild(stat("Python blocks passing", s.passing + " / " + s.total_python_blocks));
     bar.appendChild(stat("Unresolved", s.unresolved));
+    if (s.output_compared) {
+      bar.appendChild(stat("Same output as the original", s.output_same + " / " + s.output_compared));
+    }
     bar.appendChild(stat("Loops used", s.loops_used));
     var migrated = result.migrated || {};
     Object.keys(migrated).forEach(function (lib) {

@@ -1,0 +1,32 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "(442, 10) 111"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "0.359"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "[1.0, 1.0, 2.0]"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "['x0_blue', 'x0_green', 'x0_red']"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "0.087"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "151.921"
+    ]
+  }
+}

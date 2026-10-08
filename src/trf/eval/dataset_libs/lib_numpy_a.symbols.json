@@ -1,0 +1,6 @@
+{
+  "numpy.float": "removed",
+  "numpy.product": "removed",
+  "numpy.cumproduct": "removed",
+  "numpy.NaN": "renamed"
+}

@@ -1,0 +1,6 @@
+{
+  "sqlalchemy.Table.exists": "removed",
+  "sqlalchemy.*.has_table": "removed",
+  "sqlalchemy.engine.ResultProxy": "removed",
+  "sqlalchemy.engine.Connection.scalar": "behavior_changed"
+}

@@ -1,0 +1,6 @@
+{
+  "numpy.round_": "renamed",
+  "numpy.float_": "renamed",
+  "numpy.asfarray": "removed",
+  "numpy.array(copy)": "behavior_changed"
+}

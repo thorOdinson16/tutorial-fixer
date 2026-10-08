@@ -1,0 +1,6 @@
+{
+  "sqlalchemy.Table(autoload)": "removed",
+  "sqlalchemy.engine.reflection.Inspector.from_engine": "removed",
+  "sqlalchemy.orm.Query.join": "behavior_changed",
+  "sqlalchemy.engine.Row.keys": "removed"
+}

@@ -1,0 +1,6 @@
+{
+  "sklearn.linear_model.LogisticRegression(penalty)": "signature_changed",
+  "sklearn.linear_model.SGDClassifier(loss)": "signature_changed",
+  "sklearn.ensemble.RandomForestClassifier(max_features)": "signature_changed",
+  "sklearn.metrics.log_loss(eps)": "removed"
+}

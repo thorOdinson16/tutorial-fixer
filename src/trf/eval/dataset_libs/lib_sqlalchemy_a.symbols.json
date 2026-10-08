@@ -1,0 +1,8 @@
+{
+  "sqlalchemy.MetaData(bind)": "signature_changed",
+  "sqlalchemy.*.table_names": "removed",
+  "sqlalchemy.*.execute": "removed",
+  "sqlalchemy.engine.Connection.execute": "behavior_changed",
+  "sqlalchemy.select": "signature_changed",
+  "sqlalchemy.engine.Row.__getitem__": "behavior_changed"
+}

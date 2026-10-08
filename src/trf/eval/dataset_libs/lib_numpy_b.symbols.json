@@ -1,0 +1,6 @@
+{
+  "numpy.Inf": "renamed",
+  "numpy.*.ptp": "removed",
+  "numpy.alltrue": "removed",
+  "numpy.uint8": "behavior_changed"
+}

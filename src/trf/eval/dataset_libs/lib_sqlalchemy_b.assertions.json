@@ -1,0 +1,28 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "2 tasks"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "['done', 'id', 'project_id', 'title']"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "['fix sink', 'paint']"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "['projects', 'tasks']",
+      "{'name': 'home'}"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "open tasks: 2"
+    ]
+  }
+}

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
+import json
+import os
 import threading
 import uuid
 from collections.abc import Callable
@@ -14,6 +17,7 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, field_validator
 
+from trf.nodes.diagnose import diagnose
 from trf.state import BlockStatus, ChangeKind, GraphState
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -21,7 +25,7 @@ MAX_MARKDOWN_CHARS = 200_000
 MAX_JOBS = 100
 ERROR_CHARS = 500
 
-Runner = Callable[[GraphState], GraphState]
+Runner = Callable[..., GraphState]  # (state) or (state, on_stage=callable)
 JobStatus = Literal["queued", "running", "done", "failed"]
 
 
@@ -51,6 +55,8 @@ class BlockView(BaseModel):
     original_source: str
     source: str
     changed: bool
+    output_matches: bool | None = None  # same stdout as the original in its old env (if known)
+    diagnosis: str | None = None  # plain-language reason an unresolved block is not version rot
 
 
 class ChangeView(BaseModel):
@@ -68,6 +74,8 @@ class Summary(BaseModel):
     passing: int
     unresolved: int
     loops_used: int
+    output_compared: int = 0
+    output_same: int = 0
 
 
 class JobResult(BaseModel):
@@ -84,6 +92,7 @@ class JobResult(BaseModel):
 class JobView(BaseModel):
     id: str
     status: JobStatus
+    stage: str | None = None  # pipeline stage while running
     error: str | None = None
     result: JobResult | None = None
 
@@ -91,6 +100,7 @@ class JobView(BaseModel):
 @dataclass
 class _Job:
     status: JobStatus = "queued"
+    stage: str | None = None
     error: str | None = None
     result: JobResult | None = None
 
@@ -98,20 +108,58 @@ class _Job:
 class _Jobs:
     """Thread-safe in-memory job table. Past MAX_JOBS, the oldest finished jobs are dropped."""
 
-    def __init__(self) -> None:
+    def __init__(self, directory: str | Path | None = None) -> None:
         self._lock = threading.Lock()
         self._jobs: dict[str, _Job] = {}
+        self._dir = Path(directory) if directory else None
+        if self._dir:
+            self._dir.mkdir(parents=True, exist_ok=True)
+            for f in sorted(self._dir.glob("*.json"), key=lambda p: p.stat().st_mtime):
+                try:
+                    d = json.loads(f.read_text(encoding="utf-8"))
+                    job = _Job(
+                        d["status"],
+                        d.get("stage"),
+                        d.get("error"),
+                        JobResult.model_validate(d["result"]) if d.get("result") else None,
+                    )
+                except (OSError, ValueError, KeyError):
+                    continue
+                if job.status in ("queued", "running"):  # the process died mid-job
+                    job.status, job.error = "failed", "interrupted by a server restart"
+                self._jobs[f.stem] = job
+
+    def _save(self, job_id: str) -> None:
+        if not self._dir:
+            return
+        j = self._jobs[job_id]
+        data = {
+            "status": j.status,
+            "stage": j.stage,
+            "error": j.error,
+            "result": j.result.model_dump() if j.result else None,
+        }
+        tmp = self._dir / f"{job_id}.tmp"
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        tmp.replace(self._dir / f"{job_id}.json")
 
     def create(self) -> str:
         job_id = uuid.uuid4().hex
         with self._lock:
             self._jobs[job_id] = _Job()
+            self._save(job_id)
             for old_id in list(self._jobs):
                 if len(self._jobs) <= MAX_JOBS:
                     break
                 if self._jobs[old_id].status in ("done", "failed"):
                     del self._jobs[old_id]
+                    if self._dir:
+                        (self._dir / f"{old_id}.json").unlink(missing_ok=True)
         return job_id
+
+    def set_stage(self, job_id: str, stage: str) -> None:
+        with self._lock:
+            self._jobs[job_id].stage = stage
 
     def set_status(
         self,
@@ -123,18 +171,33 @@ class _Jobs:
         with self._lock:
             job = self._jobs[job_id]
             job.status, job.error, job.result = status, error, result
+            if status in ("done", "failed"):
+                job.stage = None
+            self._save(job_id)
 
     def get(self, job_id: str) -> JobView | None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
                 return None
-            return JobView(id=job_id, status=job.status, error=job.error, result=job.result)
+            return JobView(
+                id=job_id,
+                status=job.status,
+                stage=job.stage,
+                error=job.error,
+                result=job.result,
+            )
 
 
 def build_result(original_md: str, final: GraphState) -> JobResult:
     """Convert the finished pipeline state into the API payload. Only status 'passing' counts."""
     py_blocks = [b for b in final.blocks if b.lang == "python"]
+    now = {r.block_id: r.stdout for r in final.run_results if r.ok}
+    matches: dict[str, bool] = {
+        b.id: final.old_outputs[b.id].strip() == now[b.id].strip()
+        for b in py_blocks
+        if b.id in final.old_outputs and b.id in now
+    }
     return JobResult(
         original_md=original_md,
         output_md=final.output_md,
@@ -144,6 +207,8 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
             passing=sum(b.status == "passing" for b in py_blocks),
             unresolved=sum(b.status == "unresolved" for b in py_blocks),
             loops_used=final.loop_count,
+            output_compared=len(matches),
+            output_same=sum(matches.values()),
         ),
         blocks=[
             BlockView(
@@ -154,6 +219,12 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
                 original_source=b.original_source,
                 source=b.source,
                 changed=b.source != b.original_source,
+                output_matches=matches.get(b.id),
+                diagnosis=(
+                    d.text
+                    if b.status in ("failing", "unresolved") and (d := diagnose(b.last_error))
+                    else None
+                ),
             )
             for b in final.blocks
         ],
@@ -177,24 +248,50 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
     )
 
 
-def _default_runner(state: GraphState) -> GraphState:
+def _default_runner(state: GraphState, on_stage: Callable[[str], None] | None = None) -> GraphState:
     from trf.config import PipelineFlags
-    from trf.graph import run_graph  # lazy: models and env vars are needed only when a job runs
+    from trf.graph import default_nodes, run_graph  # lazy: models/env only needed when a job runs
 
-    return run_graph(state, flags=PipelineFlags.from_env())
+    flags = PipelineFlags.from_env()
+    if "TRF_PROTECT_WORKING_BLOCKS" not in os.environ:  # real tutorials: leave working code alone
+        flags = flags.model_copy(update={"protect_working_blocks": True})
+    nodes = default_nodes(flags)
+    if on_stage:
+
+        def announce(name, fn):
+            def run(s):
+                on_stage(name)
+                return fn(s)
+
+            return run
+
+        nodes = {name: announce(name, fn) for name, fn in nodes.items()}
+    return run_graph(state, flags=flags, nodes=nodes)
 
 
-def create_app(runner: Runner | None = None, max_workers: int = 1) -> FastAPI:
+def create_app(
+    runner: Runner | None = None,
+    max_workers: int | None = None,
+    jobs_dir: str | Path | None = None,
+) -> FastAPI:
+    """`jobs_dir` makes jobs survive a restart; `max_workers` defaults to $TRF_API_WORKERS or 1."""
     run = runner or _default_runner
-    jobs = _Jobs()
-    pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="trf-job")
+    wants_stage = "on_stage" in inspect.signature(run).parameters
+    workers = max_workers or int(os.environ.get("TRF_API_WORKERS", "1"))
+    jobs = _Jobs(jobs_dir)
+    pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="trf-job")
     page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     app = FastAPI(title="Tutorial Rot Fixer")
 
     def work(job_id: str, original_md: str, state: GraphState) -> None:
         jobs.set_status(job_id, "running")
         try:
-            result = build_result(original_md, run(state))
+            final = (
+                run(state, on_stage=lambda s: jobs.set_stage(job_id, s))
+                if wants_stage
+                else run(state)
+            )
+            result = build_result(original_md, final)
         except Exception as e:  # a failing job must never take the server down
             jobs.set_status(job_id, "failed", error=f"{type(e).__name__}: {e}"[:ERROR_CHARS])
         else:
@@ -243,4 +340,4 @@ def create_app(runner: Runner | None = None, max_workers: int = 1) -> FastAPI:
     return app
 
 
-app = create_app()
+app = create_app(jobs_dir=os.environ.get("TRF_JOBS_DIR", ".trf_cache/jobs"))

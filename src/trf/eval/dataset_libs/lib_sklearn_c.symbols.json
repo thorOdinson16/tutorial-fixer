@@ -1,0 +1,6 @@
+{
+  "sklearn.cluster.AgglomerativeClustering(affinity)": "renamed",
+  "sklearn.cluster.KMeans(n_jobs)": "removed",
+  "sklearn.cluster.KMeans(precompute_distances)": "removed",
+  "sklearn.utils.validation.check_array(force_all_finite)": "renamed"
+}

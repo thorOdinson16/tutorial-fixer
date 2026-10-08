@@ -1,0 +1,75 @@
+---
+title: Keeping a task list with the SQLAlchemy ORM
+date: 2022-10-12
+---
+
+# Keeping a task list with the SQLAlchemy ORM
+
+A small projects-and-tasks model, queried with the ORM and then inspected by hand.
+
+```bash
+pip install SQLAlchemy==2.1.4
+```
+
+Define two mapped classes, create the tables and add some rows:
+
+```python
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship, Session
+engine = create_engine("sqlite://")
+Base = declarative_base()
+class Project(Base):
+    __tablename__ = "projects"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50))
+class Task(Base):
+    __tablename__ = "tasks"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(100))
+    done = Column(Integer, default=0)
+    project_id = Column(Integer, ForeignKey("projects.id"))
+    project = relationship("Project")
+Base.metadata.create_all(engine)
+with Session(engine) as s:
+    home = Project(name="home")
+    s.add_all([home, Task(title="fix sink", project=home), Task(title="paint", project=home, done=1)])
+    s.commit()
+    print(s.query(Task).count(), "tasks")
+```
+
+Reflect the tasks table again to see its columns:
+
+```python
+from sqlalchemy import MetaData, Table
+audit = MetaData()
+audit_tasks = Table("tasks", audit, autoload_with=engine)
+print(sorted(c.name for c in audit_tasks.columns))
+```
+
+List the tasks that belong to the home project, using the relationship name in the join:
+
+```python
+with Session(engine) as s:
+    q = s.query(Task).join(Task.project).filter(Project.name == "home")
+    print(sorted(t.title for t in q))
+```
+
+Check which tables exist and read one project row back as a dict:
+
+```python
+from sqlalchemy import inspect, select
+print(sorted(inspect(engine).get_table_names()))
+with engine.connect() as conn:
+    first = conn.execute(select(Project.name)).first()
+print(dict(first._mapping))
+```
+
+Mark the paint task as open again and count the open tasks:
+
+```python
+with Session(engine) as s:
+    paint = s.query(Task).filter_by(title="paint").one()
+    paint.done = 0
+    s.commit()
+    print("open tasks:", s.query(Task).filter_by(done=0).count())
+```

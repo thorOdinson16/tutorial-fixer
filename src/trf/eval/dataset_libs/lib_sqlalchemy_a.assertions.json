@@ -1,0 +1,27 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "['books']"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "loaded 3"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "['Emma', 'Ulysses', 'Dune']"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "Ulysses 1922"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "['Emma', 'Persuasion']"
+    ]
+  }
+}
