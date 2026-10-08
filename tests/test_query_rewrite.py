@@ -156,3 +156,17 @@ def test_node_ignores_passing_and_non_python_blocks():
     )
     out = make_query_rewrite()(s)
     assert out["error_symbols"] == {} and out["warnings"] == []
+
+
+def test_removed_module_attribute_maps_to_the_symbol_actually_used():
+    known = [Symbol(name="pandas.np.mean", library="pandas")]
+    err = "AttributeError: module 'pandas' has no attribute 'np'"
+    assert names(err, known=known) == ["pandas.np", "pandas.np.mean"]
+    assert names(err) == ["pandas.np"]  # nothing more specific known
+
+
+def test_last_resort_match_only_looks_at_the_error_message_not_the_source_echo():
+    known = [Symbol(name="pandas.Series.astype", library="pandas")]
+    tb = "Traceback (most recent call last):\n    df['p'] = df['p'].astype(float)\nValueError: could not convert string to float: '$2.50'"
+    assert names(tb, known=known) == []
+    assert names("ValueError: bad astype call", known=known) == ["pandas.Series.astype"]

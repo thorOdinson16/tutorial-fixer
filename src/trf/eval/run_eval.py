@@ -66,7 +66,7 @@ CONFIGS: dict[str, PipelineFlags] = {
         }  # fmt: skip
     ),
 }
-DEFAULT_CONFIGS = ["0_original", "1_llm_only", "2_dense", "3_hybrid", "4_full"]
+DEFAULT_CONFIGS = ["0_original", "1_llm_only", "2_dense", "3_hybrid", "4_full", "5_loop"]
 
 GraphRunner = Callable[..., GraphState]
 

@@ -93,7 +93,11 @@ def symbols_from_error(
     for m in _ATTR_MOD.finditer(error):
         lib = m["mod"].split(".")[0]
         if lib in libraries:
-            add(f"{m['mod']}.{m['attr']}", "attribute")
+            name = f"{m['mod']}.{m['attr']}"
+            # `pandas.np` is gone: the tutorial symbol is what it used from it (`pandas.np.mean`)
+            deeper = sorted(n for n in r.names if n.startswith(name + "."))
+            for n in [name, *deeper]:
+                add(n, "attribute")
     for m in _ATTR_OBJ.finditer(error):
         add(r.attribute(m["obj"] or m["cls"], m["attr"]), "attribute")
     for m in _KWARG.finditer(error):
@@ -131,7 +135,7 @@ def symbols_from_error(
             add(f"{lib}.{owner}{word}", "attribute")
     # last resort: a symbol we already know is named in the error text
     if not found:
-        words = _words(error)
+        words = _words(error.strip().splitlines()[-1] if error.strip() else "")  # message only
         for n in sorted(r.names):
             if _tail(n) in words:
                 add(n, "attribute")
