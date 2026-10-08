@@ -13,6 +13,36 @@ from trf.pypi import fetch_releases, latest
 ENV_PREFIX = "TRF_"
 
 
+def load_dotenv(path: Path | str = ".env") -> list[str]:
+    """Read KEY=VALUE lines from `path` into os.environ, never overriding a variable already set.
+
+    Returns the names it set. A missing file is fine. Only `TRF_*` and the standard provider keys
+    are accepted, so a stray `.env` cannot change unrelated environment such as PATH.
+    """
+    f = Path(path)
+    if not f.is_file():
+        return []
+    set_names: list[str] = []
+    for raw in f.read_text(encoding="utf-8-sig").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.removeprefix("export ").strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if not key.startswith(ENV_PREFIX) or key in os.environ:
+            continue
+        os.environ[key] = value
+        set_names.append(key)
+    return set_names
+
+
+if not os.environ.get("TRF_NO_DOTENV"):
+    load_dotenv()
+
+
 class ConfigError(RuntimeError):
     pass
 
