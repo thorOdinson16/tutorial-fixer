@@ -105,6 +105,7 @@ def make_precheck(
                 f"precheck: {', '.join(drift)} run on both versions but print different output "
                 "(not protected; a behaviour change)"
             )
-        return {"protected_blocks": protected, "warnings": warnings}
+        old_outputs = {r.block_id: r.stdout for r in old.run_results if r.ok} if old else {}
+        return {"protected_blocks": protected, "old_outputs": old_outputs, "warnings": warnings}
 
     return precheck

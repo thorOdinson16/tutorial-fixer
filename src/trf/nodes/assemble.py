@@ -39,6 +39,35 @@ def _evidence_line(e: ChangeLogEntry, urls: dict[str, str]) -> str:
     return " ".join(x for x in (f"evidence: {cite}" if cite else "", links) if x)
 
 
+def _output_comparison(state: GraphState, py: list[CodeBlock]) -> list[str]:
+    """Blocks whose output now differs from what the ORIGINAL printed in its old environment.
+
+    Only available when the precheck ran (`protect_working_blocks`). A difference is not
+    necessarily wrong (a repr or dtype can change legitimately), but an edit that changes what a
+    tutorial shows is exactly what a reader should look at.
+    """
+    if not state.old_outputs:
+        return []
+    now = {r.block_id: r.stdout for r in state.run_results if r.ok}
+    comparable = [b.id for b in py if b.id in state.old_outputs and b.id in now]
+    differ = [i for i in comparable if state.old_outputs[i].strip() != now[i].strip()]
+    lines = [
+        "## Output compared with the original",
+        "",
+        f"{len(comparable) - len(differ)} of {len(comparable)} comparable blocks print the same "
+        "output as the original did in its old environment.",
+    ]
+    if differ:
+        lines += [
+            f"**Different output: {', '.join(differ)}.** Check these edits; the code runs but "
+            "what it shows has changed.",
+        ]
+    skipped = len(py) - len(comparable)
+    if skipped:
+        lines.append(f"{skipped} block(s) could not be compared (failed before or after).")
+    return [*lines, ""]
+
+
 def build_change_log(state: GraphState, blocks: list[CodeBlock]) -> str:
     urls = {c.id: c.source_url for cs in state.evidence.values() for c in cs}
     lines = ["# Change log", ""]
@@ -66,6 +95,8 @@ def build_change_log(state: GraphState, blocks: list[CodeBlock]) -> str:
         detail = (b.last_error or "").replace("|", "\\|").replace("\n", " ")[:160]
         lines.append(f"| {b.id} | {b.lang or '-'} | {STATUS_LABEL[b.status]} | {detail} |")
     lines.append("")
+
+    lines += _output_comparison(state, py)
 
     lines += ["## Changes", ""]
     if not state.change_log:

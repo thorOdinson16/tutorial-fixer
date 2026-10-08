@@ -127,3 +127,27 @@ def test_protect_config_differs_from_5_loop_only_by_the_flag():
         k: v for k, v in b.items() if k != "protect_working_blocks"
     }
     assert PipelineFlags().protect_working_blocks is False  # existing behaviour is the default
+
+
+def test_change_log_lists_blocks_whose_output_changed_vs_the_original():
+    from trf.nodes.assemble import build_change_log
+
+    blocks = [
+        CodeBlock.new("b1", "x").model_copy(update={"status": "passing"}),
+        CodeBlock.new("b2", "y").model_copy(update={"status": "passing"}),
+        CodeBlock.new("b3", "z").model_copy(update={"status": "failing"}),
+    ]
+    s = GraphState(
+        blocks=blocks,
+        old_outputs={"b1": "same\n", "b2": "before", "b3": "x"},
+        run_results=[ran("b1", "same"), ran("b2", "after"), ran("b3", "", ok=False)],
+    )
+    md = build_change_log(s, blocks)
+    assert "## Output compared with the original" in md
+    assert "1 of 2 comparable blocks print the same output" in md
+    assert "Different output: b2" in md
+    assert "1 block(s) could not be compared" in md
+    # not shown at all when the precheck did not run
+    assert "Output compared" not in build_change_log(
+        s.model_copy(update={"old_outputs": {}}), blocks
+    )
