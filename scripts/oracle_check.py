@@ -19,7 +19,6 @@ from trf.graph import run_graph
 from trf.nodes.diff import DiffBatch, VerdictOut
 from trf.nodes.ingest import ingest
 from trf.nodes.rewrite import ChangeOut, RewriteOut
-from trf.state import GraphState
 
 
 class Oracle:
@@ -29,7 +28,7 @@ class Oracle:
         ref = load_reference(case)
         o = orig.model_copy(update=ingest(orig))
         r = ref.model_copy(update=ingest(ref))
-        self.fix = {b.source: rb.source for b, rb in zip(o.blocks, r.blocks)}
+        self.fix = {b.source: rb.source for b, rb in zip(o.blocks, r.blocks, strict=True)}
         self.calls = 0
 
     def structured(self, prompt, schema, *, system=None, max_retries=2):
