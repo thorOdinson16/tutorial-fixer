@@ -265,6 +265,9 @@ def main() -> None:
     ap.add_argument("--configs", nargs="*", default=DEFAULT_CONFIGS)
     ap.add_argument("--cases", nargs="*", default=None)
     ap.add_argument("--out", default="runs/eval")
+    ap.add_argument(
+        "--dataset-dir", type=Path, default=DATASET_DIR, help="e.g. src/trf/eval/dataset_heldout"
+    )
     ap.add_argument("--force", action="store_true", help="re-run even if a log exists")
     ap.add_argument(
         "--retry-errors", action="store_true", help="re-run cases whose log recorded a crash"
@@ -275,7 +278,7 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     sandbox_settings = SandboxSettings.from_env()
-    cases = args.cases or list_cases()
+    cases = args.cases or list_cases(args.dataset_dir)
     llm = LLM.from_env() if any(c != "0_original" for c in args.configs) else None
 
     for cfg in args.configs:
@@ -291,7 +294,12 @@ def main() -> None:
                     continue
                 print(f"[retry] {cfg}/{case} (previous run crashed)")
             log, out_md, change_md = run_one(
-                case, cfg, llm=llm, sandbox_settings=sandbox_settings, max_loops=args.max_loops
+                case,
+                cfg,
+                llm=llm,
+                sandbox_settings=sandbox_settings,
+                max_loops=args.max_loops,
+                dataset_dir=args.dataset_dir,
             )
             target.write_text(json.dumps(log, indent=2), encoding="utf-8")
             (out / cfg / f"{case}.out.md").write_text(out_md, encoding="utf-8", newline="\n")

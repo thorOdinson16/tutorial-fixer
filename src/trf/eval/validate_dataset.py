@@ -1,6 +1,7 @@
 """Prove the eval dataset is sound before trusting any score computed against it.
 
     uv run python -m trf.eval.validate_dataset [--cases a b] [--skip-control] [--skip-reference]
+                                               [--dataset-dir DIR]
 
 For every case:
   control    the ORIGINAL tutorial must pass (assertions included) in its original pinned env;
@@ -14,10 +15,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from trf.config import SandboxSettings
 from trf.eval.baseline import prepare, run_state
-from trf.eval.loader import list_cases, load_case, load_reference
+from trf.eval.loader import DATASET_DIR, list_cases, load_case, load_reference
 from trf.nodes.ingest import split_segments
 from trf.state import GraphState
 
@@ -42,15 +44,17 @@ def main() -> None:
     ap.add_argument("--cases", nargs="*", default=None)
     ap.add_argument("--skip-control", action="store_true")
     ap.add_argument("--skip-reference", action="store_true")
+    ap.add_argument("--dataset-dir", type=Path, default=DATASET_DIR)
     args = ap.parse_args()
+    d = args.dataset_dir
 
     settings = SandboxSettings.from_env()
     failures: list[str] = []
     print(f"{'case':38} {'control':>9} {'reference':>10}  notes")
-    for name in args.cases or list_cases():
+    for name in args.cases or list_cases(d):
         notes: list[str] = []
-        orig = prepare(load_case(name))
-        ref0 = prepare(load_reference(name))
+        orig = prepare(load_case(name, d))
+        ref0 = prepare(load_reference(name, d))
 
         if not prose_identical(orig.tutorial_md, ref0.tutorial_md):
             notes.append("PROSE DIFFERS")
