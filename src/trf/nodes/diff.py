@@ -13,6 +13,7 @@ Without retrieval (the LLM-only baseline) there is nothing to cite, so this stag
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from pydantic import BaseModel, Field
@@ -40,6 +41,23 @@ VERDICT_HELP = """\
   (replacement = what to use instead, or null)
 - behavior_changed: same API, different behaviour/defaults that can break existing code
 - Omit symbols that are unchanged."""
+
+
+_KIND_SUFFIX = re.compile(
+    r"\s*[\(\[](?:function|class|method|attribute|module|cli|config_key|argument)[\)\]]\s*$", re.I
+)
+
+
+def clean_symbol(raw: str, known: set[str]) -> str:
+    """Models often echo the prompt's `name (kind)` line; map that back to the bare symbol."""
+    s = raw.strip().strip("`\"'")
+    if s in known:
+        return s
+    stripped = _KIND_SUFFIX.sub("", s).strip().strip("`\"'")
+    if stripped in known:
+        return stripped
+    lowered = {k.lower(): k for k in known}
+    return lowered.get(stripped.lower(), s)
 
 
 class VerdictOut(BaseModel):
@@ -79,7 +97,8 @@ def build_prompt(
         f"the target version is {target}.\n\nEVIDENCE CHUNKS (cite by id):\n{ev}\n\n"
         f"SYMBOLS USED IN THE TUTORIAL:\n{syms}\n\n{seen}"
         f"Verdict meanings:\n{VERDICT_HELP}\n\n"
-        "Return the symbols that CHANGED. For each: the exact symbol string from the list, the "
+        "Return the symbols that CHANGED. For each: the exact symbol string from the list (just "
+        "the name, without the parenthesised kind that follows it), the "
         "verdict, the replacement (or null), the chunk ids that state the change (ids copied "
         "exactly from the evidence list), and a confidence in [0, 1]."
     )
@@ -144,8 +163,10 @@ def make_diff(
                 except LLMError as e:
                     warnings.append(f"diff: LLM failed for {[s.name for s in batch]}: {e}")
                     continue
+                in_batch = {s.name for s in batch}
                 for v in out.verdicts:
-                    if v.symbol not in {s.name for s in batch} or v.symbol not in known:
+                    v = v.model_copy(update={"symbol": clean_symbol(v.symbol, in_batch)})
+                    if v.symbol not in in_batch or v.symbol not in known:
                         warnings.append(f"diff: dropped verdict for unknown symbol {v.symbol!r}")
                         continue
                     if v.verdict == "unchanged":

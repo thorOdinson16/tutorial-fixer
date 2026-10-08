@@ -338,3 +338,34 @@ def test_diff_batches_symbols_and_survives_an_llm_failure():
     assert "pandas.f6" in llm.prompts[1] and "pandas.f0" not in llm.prompts[1]
     assert [v.symbol for v in out["verdicts"]] == ["pandas.f6"]  # batch 2 still produced a verdict
     assert any("LLM failed" in w for w in out["warnings"])  # batch 1 failure is recorded
+
+
+def test_diff_accepts_symbols_echoed_with_their_kind_suffix():
+    from trf.nodes.diff import clean_symbol
+
+    known = {"pandas.DataFrame.append", "pandas.read_csv(parse_dates)"}
+    assert clean_symbol("pandas.DataFrame.append (method)", known) == "pandas.DataFrame.append"
+    assert (
+        clean_symbol("`pandas.read_csv(parse_dates)` (argument)", known)
+        == "pandas.read_csv(parse_dates)"
+    )
+    assert clean_symbol("PANDAS.dataframe.APPEND", known) == "pandas.DataFrame.append"
+    assert clean_symbol("pandas.read_csv(parse_dates)", known) == "pandas.read_csv(parse_dates)"
+    assert clean_symbol("pandas.Nonexistent (method)", known) == "pandas.Nonexistent (method)"
+
+    s = with_evidence(prepared())
+    llm = FakeLLM(
+        DiffBatch(
+            verdicts=[
+                VerdictOut(
+                    symbol="pandas.DataFrame.append (method)",
+                    verdict="removed",
+                    replacement="pandas.concat",
+                    evidence_chunk_ids=["pandas:wn:1"],
+                    confidence=0.9,
+                )
+            ]
+        )
+    )
+    out = make_diff(llm, RETRIEVAL)(s)
+    assert [v.symbol for v in out["verdicts"]] == ["pandas.DataFrame.append"]
