@@ -2,8 +2,9 @@
 
 In loop passes (loop_count > 0) only the symbols `query_rewrite` just derived from sandbox
 errors are retrieved; earlier evidence is kept. For those symbols the observed error message is a
-second query (its quoted values as keywords), because a symbol name alone often misses the note
-that explains the failure (`'seaborn-white' is not a valid style` -> the style-rename entry).
+second query (its quoted values as keywords) whose hits go FIRST, because a symbol name alone
+often misses the note that explains the failure (`'seaborn-white' is not a valid style` -> the
+style-rename entry) and the diff stage only shows the top few chunks per symbol.
 The pipeline factory is injectable so the node is testable without models or a corpus.
 """
 
@@ -78,8 +79,9 @@ def make_retrieve(
                     target=target,
                     k=ERROR_EXTRA,
                 )
-                seen = {c.id for c in chunks}
-                chunks += [h.chunk for h in extra if h.chunk.id not in seen]
+                # first: the diff stage only shows the top few chunks per symbol
+                mine = {h.chunk.id for h in extra}
+                chunks = [h.chunk for h in extra] + [c for c in chunks if c.id not in mine]
             evidence[s.name] = chunks
         return {"evidence": evidence}
 

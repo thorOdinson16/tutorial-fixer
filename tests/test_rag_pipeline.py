@@ -166,7 +166,7 @@ def test_loop_retrieval_adds_chunks_found_by_the_error_message():
     )
     out = make_retrieve(lambda lib: FakePipe(), PipelineFlags())(state)
     ids = [c.id for c in out["evidence"][sym.name]]
-    assert ids == ["m:1", "m:2"]  # symbol hit first, error hit added, duplicate dropped
+    assert ids == ["m:2", "m:1"]  # error-message hit first (diff shows the top chunks only)
     assert asked["keywords"] == "seaborn-white"
     # the first pass (loop_count 0) never uses the error query
     asked.clear()
