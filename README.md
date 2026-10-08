@@ -274,6 +274,26 @@ reaches 100% for the full pipeline. Caveats: 6 tutorials (one block is about 3 p
 and the tutorials were written by a smaller model from a spec, so they are cleaner and shorter than
 real-world tutorials. They support "the dev-set result was not just tuning", not tight estimates.
 
+### Protecting blocks that already work (`6_protect`)
+
+Opt-in (`PipelineFlags.protect_working_blocks`, config `6_protect` = `5_loop` + protection,
+`scripts/demo.py --protect`). A `precheck` stage runs the ORIGINAL tutorial in its target
+environment and in its old environment (on an older Python where the old pandas has no Python 3.10
+wheel), and rewrite never edits a block that already runs. When the precheck ran, the change log
+also says which blocks now print different output from what the original printed.
+
+| | block pass | tutorial pass | change-log entries | LLM calls/case |
+|---|---|---|---|---|
+| dev, `5_loop` | 88% | 53% | 98 | 9.5 |
+| dev, `6_protect` | 88% | 53% | 77 | 7.9 |
+| held-out, `5_loop` | 97% | 83% | 33 | 7.8 |
+| held-out, `6_protect` | 97% | 83% | 32 | 6.8 |
+
+Same pass rates, about a fifth fewer edits on the dev set (unrelated edits 1% to 0%) and fewer LLM
+calls. On the dev set the precheck also flagged two blocks that run on both versions but print
+different output. It is off by default because it adds two sandbox runs per tutorial; on real
+tutorials it is the setting that avoids edits such as `applymap` -> `map`.
+
 ### Spot check on six real tutorials
 
 Six public tutorials (four pandas, two FastAPI/pydantic; 2020-2021) were fetched, converted to
@@ -312,6 +332,17 @@ cut around the symbol instead of from the start (a long changelog chunk hid the
 `engine="pyarrow"` to a working call); a block broken by the system's own edit is retried; and an
 edit reported under a bare callee (`pandas.read_csv`) is attributed to all matching verdicts
 instead of being dropped. The pre-fix numbers were `4_full` 72% and `5_loop` 84% (kept locally in `runs/eval_v1/`; `runs/` is not committed).
+
+## Spend cap
+
+`TRF_MAX_SPEND_USD` (with `TRF_PRICE_IN_PER_M` and `TRF_PRICE_OUT_PER_M`, USD per million tokens;
+use prices at or above the real ones) puts a hard budget on the OpenAI backend. Before every call
+the backend assumes the worst case (a prompt at 2 characters per token and every allowed completion
+token generated), refuses to send it if the running total in `TRF_SPEND_LEDGER`
+(default `.trf_cache/spend.json`, shared by all processes) plus that worst case would pass 90% of
+the cap, and raises `BudgetExceeded`, which no stage catches. `run_eval` then stops without logging
+the case as a crash. Billed tokens are counted per run (`tokens` in each eval log, printed by
+`demo.py`). Cached responses cost nothing.
 
 ## Known limitations
 
