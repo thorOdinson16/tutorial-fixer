@@ -47,6 +47,11 @@ class ConfigError(RuntimeError):
     pass
 
 
+def _opt_float(name: str) -> float | None:
+    raw = os.environ.get(ENV_PREFIX + name)
+    return float(raw) if raw not in (None, "") else None
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(ENV_PREFIX + name)
     if raw is None:
@@ -87,6 +92,10 @@ class LLMSettings(BaseModel):
     timeout_s: float = 900.0
     num_ctx: int | None = None  # ollama: context window (its default is small)
     cache_dir: str | None = None  # on-disk response cache (resumable, reproducible evals)
+    max_spend_usd: float | None = None  # hard budget; needs both prices below
+    price_in_per_m: float | None = None  # USD per million prompt tokens
+    price_out_per_m: float | None = None  # USD per million completion tokens (incl. reasoning)
+    spend_ledger: str = ".trf_cache/spend.json"  # running total, shared by every process
 
     @classmethod
     def from_env(cls) -> LLMSettings:
@@ -109,6 +118,10 @@ class LLMSettings(BaseModel):
             if os.environ.get(ENV_PREFIX + "LLM_NUM_CTX")
             else None,
             cache_dir=os.environ.get(ENV_PREFIX + "LLM_CACHE_DIR") or None,
+            max_spend_usd=_opt_float("MAX_SPEND_USD"),
+            price_in_per_m=_opt_float("PRICE_IN_PER_M"),
+            price_out_per_m=_opt_float("PRICE_OUT_PER_M"),
+            spend_ledger=os.environ.get(ENV_PREFIX + "SPEND_LEDGER", ".trf_cache/spend.json"),
         )
 
 

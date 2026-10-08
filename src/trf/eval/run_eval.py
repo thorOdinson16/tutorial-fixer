@@ -36,7 +36,7 @@ from trf.eval.loader import (
     load_expected_verdicts,
 )
 from trf.graph import run_graph
-from trf.llm import LLM
+from trf.llm import LLM, BudgetExceeded
 from trf.state import GraphState
 
 OFF = {f: False for f in PipelineFlags.model_fields}
@@ -109,6 +109,7 @@ def run_one(
     reference_md = (dataset_dir / f"{case}.fixed.md").read_text(encoding="utf-8")
     flags = CONFIGS.get(cfg_name)
     calls0, t0 = (llm.calls if llm else 0), time.time()
+    usage0 = llm.usage() if llm else {}
     error = None
     try:
         final = (
@@ -116,6 +117,8 @@ def run_one(
             if cfg_name == "0_original"
             else runner(state0, flags=flags, llm=llm)
         )
+    except BudgetExceeded:
+        raise  # the budget is a hard stop for the whole eval, never a per-case "crash"
     except Exception as e:  # one broken case must not abort the whole eval
         error = f"{type(e).__name__}: {e}"
         base = prepare(state0)
@@ -138,6 +141,7 @@ def run_one(
     log = {
         "case": case, "config": cfg_name, "flags": flags.model_dump() if flags else None,
         "error": error, "seconds": seconds, "llm_calls": (llm.calls - calls0) if llm else 0,
+        "tokens": {k: v - usage0.get(k, 0) for k, v in (llm.usage() if llm else {}).items()},
         "inputs": {
             "libraries": final.libraries, "old_versions": final.old_versions,
             "target_versions": final.target_versions, "pins": final.pins,
@@ -162,6 +166,15 @@ def run_one(
         },
     }  # fmt: skip
     return log, final.output_md, final.change_log_md
+
+
+def run_one_or_stop(*args, **kwargs):
+    """run_one, but a spent budget ends the whole eval cleanly (no log is written for the case)."""
+    try:
+        return run_one(*args, **kwargs)
+    except BudgetExceeded as e:
+        print(f"[STOP] {e}")
+        raise SystemExit(3) from e
 
 
 def aggregate(logs: list[dict]) -> dict:
@@ -294,7 +307,7 @@ def main() -> None:
                     print(f"[skip] {cfg}/{case} (log exists)")
                     continue
                 print(f"[retry] {cfg}/{case} (previous run crashed)")
-            log, out_md, change_md = run_one(
+            log, out_md, change_md = run_one_or_stop(
                 case,
                 cfg,
                 llm=llm,

@@ -242,3 +242,101 @@ def test_openai_gives_up_after_repeated_network_errors(monkeypatch):
     b = OpenAIBackend(LLMSettings(provider="openai", model="m", api_key="k"))
     with pytest.raises(LLMError, match="network error"):
         b.complete(None, [])
+
+
+def test_openai_counts_billed_tokens(monkeypatch):
+    reply = _Resp(
+        200,
+        payload={
+            "choices": [{"message": {"content": "hi"}}],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 40,
+                "completion_tokens_details": {"reasoning_tokens": 25},
+            },
+        },
+    )
+    b, _ = _openai(monkeypatch, [reply, reply])
+    llm = LLM(b)
+    llm.complete("x")
+    llm.complete("y")
+    assert llm.usage() == {
+        "api_calls": 2,
+        "prompt_tokens": 200,
+        "completion_tokens": 80,
+        "reasoning_tokens": 50,
+    }
+    assert LLM(object()).usage() == {}  # a backend that reports nothing
+
+
+def _budget_backend(monkeypatch, tmp_path, cap, replies, max_tokens=100):
+    from trf.llm import OpenAIBackend
+
+    sent = []
+
+    def post(url, headers, timeout, json):
+        sent.append(json)
+        return replies.pop(0)
+
+    monkeypatch.setattr("trf.llm.httpx.post", post)
+    s = LLMSettings(
+        provider="openai",
+        model="m",
+        api_key="k",
+        max_tokens=max_tokens,
+        max_spend_usd=cap,
+        price_in_per_m=1000.0,  # deliberately huge so tiny token counts matter
+        price_out_per_m=2000.0,
+        spend_ledger=str(tmp_path / "spend.json"),
+    )
+    return OpenAIBackend(s), sent
+
+
+def _usage_reply(p, c):
+    return _Resp(
+        200,
+        payload={
+            "choices": [{"message": {"content": "hi"}}],
+            "usage": {"prompt_tokens": p, "completion_tokens": c},
+        },
+    )
+
+
+def test_spend_cap_stops_calls_before_they_can_cross_it(monkeypatch, tmp_path):
+    import json
+
+    from trf.llm import BudgetExceeded
+
+    # worst case for one call here is ~$0.20 (100 tokens at $2000/M); cap 0.40 -> 90% = 0.36
+    b, sent = _budget_backend(
+        monkeypatch, tmp_path, 0.40, [_usage_reply(10, 50), _usage_reply(10, 50)]
+    )
+    b.complete(None, [{"role": "user", "content": "x"}])  # actual cost 0.11
+    b.complete(None, [{"role": "user", "content": "x"}])  # total 0.22; next worst case 0.20 > 0.36?
+    spent = json.loads((tmp_path / "spend.json").read_text())["usd"]
+    assert abs(spent - 0.22) < 1e-9
+    import pytest
+
+    with pytest.raises(BudgetExceeded):
+        b.complete(None, [{"role": "user", "content": "x"}])
+    assert len(sent) == 2  # the refused call never reached the network
+
+
+def test_budget_exceeded_is_not_swallowed_as_an_llm_error():
+    from trf.llm import BudgetExceeded
+
+    assert not issubclass(BudgetExceeded, LLMError)
+
+
+def test_spend_cap_requires_prices():
+    from trf.llm import OpenAIBackend
+
+    with pytest.raises(ConfigError, match="PRICE_IN_PER_M"):
+        OpenAIBackend(LLMSettings(provider="openai", model="m", max_spend_usd=1.0))
+
+
+def test_ledger_total_survives_a_new_process(monkeypatch, tmp_path):
+    b, _ = _budget_backend(monkeypatch, tmp_path, 10.0, [_usage_reply(10, 50)])
+    b.complete(None, [{"role": "user", "content": "x"}])
+    again, _ = _budget_backend(monkeypatch, tmp_path, 10.0, [])
+    assert abs(again.ledger.total() - 0.11) < 1e-9

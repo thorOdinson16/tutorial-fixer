@@ -68,6 +68,8 @@ def main() -> None:
         note = f"  ({b.last_error[:90]})" if b.last_error else ""
         print(f"  {b.id}: {b.status:<10} {edited}{note}")
     print(f"{sum(b.status == 'passing' for b in py)}/{len(py)} python blocks passing")
+    if llm.usage():
+        print("billed tokens:", llm.usage())
     if final.unresolved_block_ids:
         print(f"UNRESOLVED (needs manual attention): {', '.join(final.unresolved_block_ids)}")
     print(f"wrote {out / (name + '.out.md')} and {out / (name + '.changelog.md')}")

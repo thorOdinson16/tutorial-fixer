@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Protocol, TypeVar
@@ -36,6 +37,47 @@ class Backend(Protocol):
 
 
 RETRY_DELAYS = (2, 5, 15, 45, 90)  # seconds between attempts on transient failures
+SPEND_MARGIN = 0.9  # only ever commit 90% of the cap: retries and rounding must not cross it
+
+
+class BudgetExceeded(RuntimeError):
+    """The spend cap would be crossed. Deliberately NOT an LLMError: no stage may swallow it."""
+
+
+class SpendLedger:
+    """Running USD total in a JSON file, so the cap holds across processes and restarts."""
+
+    def __init__(self, path: str | Path, cap_usd: float, price_in: float, price_out: float):
+        self.path, self.cap = Path(path), cap_usd * SPEND_MARGIN
+        self.price_in, self.price_out = price_in, price_out
+        self._lock = threading.Lock()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def total(self) -> float:
+        try:
+            return float(json.loads(self.path.read_text(encoding="utf-8"))["usd"])
+        except (OSError, ValueError, KeyError):
+            return 0.0
+
+    def cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        return (prompt_tokens * self.price_in + completion_tokens * self.price_out) / 1e6
+
+    def check(self, prompt_chars: int, max_completion_tokens: int) -> None:
+        """Refuse a call whose WORST case (every allowed token generated) would cross the cap."""
+        worst = self.cost(prompt_chars // 2 + 1, max_completion_tokens)  # 2 chars/token: high
+        with self._lock:
+            if self.total() + worst > self.cap:
+                raise BudgetExceeded(
+                    f"spend cap ${self.cap:.2f} (90% of the budget) would be crossed: "
+                    f"${self.total():.4f} spent, next call could cost up to ${worst:.4f}"
+                )
+
+    def add(self, prompt_tokens: int, completion_tokens: int) -> None:
+        with self._lock:
+            self.path.write_text(
+                json.dumps({"usd": self.total() + self.cost(prompt_tokens, completion_tokens)}),
+                encoding="utf-8",
+            )
 
 
 class OpenAIBackend:
@@ -50,21 +92,40 @@ class OpenAIBackend:
     def __init__(self, s: LLMSettings):
         self.s = s
         self.url = (s.base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
+        self.usage = {
+            "api_calls": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "reasoning_tokens": 0,
+        }
         self.token_param = (
             "max_completion_tokens"
             if self.url.startswith("https://api.openai.com/")
             else "max_tokens"
         )
         self.send_temperature = True
+        self.ledger: SpendLedger | None = None
+        if s.max_spend_usd is not None:
+            if s.price_in_per_m is None or s.price_out_per_m is None:
+                raise ConfigError(
+                    "TRF_MAX_SPEND_USD needs TRF_PRICE_IN_PER_M and TRF_PRICE_OUT_PER_M "
+                    "(USD per million tokens); use prices at or above the real ones"
+                )
+            self.ledger = SpendLedger(
+                s.spend_ledger, s.max_spend_usd, s.price_in_per_m, s.price_out_per_m
+            )
 
     def complete(self, system, messages, *, json_schema=None) -> str:
         msgs = ([{"role": "system", "content": system}] if system else []) + messages
+        size = len(system or "") + sum(len(m["content"]) for m in messages)
         headers = {"Authorization": f"Bearer {self.s.api_key}"} if self.s.api_key else {}
         failures = 0
         for _ in range(8):
             body = {"model": self.s.model, "messages": msgs, self.token_param: self.s.max_tokens}
             if self.send_temperature:
                 body["temperature"] = self.s.temperature
+            if self.ledger:
+                self.ledger.check(size, self.s.max_tokens)
             try:
                 r = httpx.post(self.url, headers=headers, timeout=self.s.timeout_s, json=body)
             except httpx.TransportError as e:  # DNS blip, reset, timeout: wait and try again
@@ -90,7 +151,16 @@ class OpenAIBackend:
             break
         if r.is_error:
             raise LLMError(f"{r.status_code}: {r.text[:500]}")
-        return r.json()["choices"][0]["message"]["content"]
+        data = r.json()
+        u = data.get("usage") or {}
+        self.usage["api_calls"] += 1
+        self.usage["prompt_tokens"] += u.get("prompt_tokens", 0)
+        self.usage["completion_tokens"] += u.get("completion_tokens", 0)
+        details = u.get("completion_tokens_details") or {}
+        self.usage["reasoning_tokens"] += details.get("reasoning_tokens", 0)
+        if self.ledger:
+            self.ledger.add(u.get("prompt_tokens", 0), u.get("completion_tokens", 0))
+        return data["choices"][0]["message"]["content"]
 
 
 class AnthropicBackend:
@@ -193,6 +263,13 @@ class LLM:
     def __init__(self, backend: Backend):
         self.backend = backend
         self.calls = 0  # backend invocations that reached this wrapper (cached or not)
+
+    def usage(self) -> dict[str, int]:
+        """Tokens the provider billed so far (cache hits cost nothing); {} if it does not report."""
+        b = self.backend
+        while hasattr(b, "inner"):
+            b = b.inner
+        return dict(getattr(b, "usage", {}))
 
     @classmethod
     def from_env(cls) -> LLM:
