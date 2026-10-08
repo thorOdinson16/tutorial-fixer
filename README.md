@@ -10,9 +10,8 @@ Input: a Markdown file. Output: updated Markdown plus a change log (what changed
 links, run status per code block).
 
 **Status:** all pipeline code, the eval harness, the feedback loop and the API/UI are built and
-tested (171 tests, a mocked LLM and sandbox where needed). The end-to-end LLM eval (configs 1–5) has
-**not been run yet**, so there are no accuracy or pass-rate numbers for the system itself. See
-[Status](#status) for exactly what exists and what the numbers do and do not show.
+tested (171 tests, a mocked LLM and sandbox where needed). The end-to-end eval (configs 0–5, 15 tutorials, `gpt-6-luna`) has run once; see
+[Results](#results) for the numbers and, as importantly, what they do not show.
 Setup instructions are in [SETUP.md](SETUP.md).
 
 ## How it works
@@ -100,10 +99,10 @@ make "runs without error" not the only pass criterion.
 | 0 | Scaffold, config, LLM wrapper, state, graph with conditional cycle, sandbox image + smoke test | done |
 | 1 | ingest / extract / resolve_versions / sandbox, baseline on 3 tutorials | done |
 | 2 | Corpus, BM25, dense, RRF, rerank, symbol index, retrieval sanity script | done |
-| 3 | diff, rewrite, assemble (implemented and unit-tested); 15-tutorial eval dataset with hand-fixed references; eval runner | code done; LLM eval (configs 1–4) not run |
-| 4 | Sandbox feedback loop (`query_rewrite`) and unresolved handling: implemented and tested with a scripted LLM and sandbox; full ablation needs a real model | code done, not yet evaluated |
+| 3 | diff, rewrite, assemble (implemented and unit-tested); 15-tutorial eval dataset with hand-fixed references; eval runner | done; evaluated (see Results) |
+| 4 | Sandbox feedback loop (`query_rewrite`) and unresolved handling: implemented and tested with a scripted LLM and sandbox; full ablation needs a real model | done; evaluated as config `5_loop` |
 | 5 | FastAPI service + side-by-side diff UI (`trf.api.main`), tested with a fake runner and checked in headless Chrome | done |
-| 6 | Polish: demo script, limitations, ablation instructions done; ablation **results** need the real eval | partly done |
+| 6 | Polish: demo script, limitations, ablation instructions done; ablation **results** need the real eval | done (single-run results, see caveats) |
 
 ### Evaluation dataset
 
@@ -197,10 +196,8 @@ uv run python -m trf.eval.run_eval                # configs 0-5, resumable, logs
 uv run python -m trf.eval.run_eval --configs 4_full 5_loop --cases pandas_timeseries --force
 ```
 
-`runs/eval/results.md` is regenerated after every case. Today it contains config 0 only (the
-untouched tutorials in the target environment: 41% of blocks, 1 of 15 tutorials pass). The ablation
-across configs 1–5 is what the LLM eval will fill in; until it has run there is no claim about
-whether retrieval, reranking or the loop help.
+`runs/eval/results.md` is regenerated after every case, and `--retry-errors` re-runs cases whose
+log recorded a crash (e.g. a network failure). The numbers are in [Results](#results).
 
 ### How well does `query_rewrite` read real failures?
 
@@ -221,13 +218,58 @@ unresolved are errors that name no library symbol (changed validation behaviour,
 that alters output). This shows the wiring and the error parser work end to end and is an upper
 bound for those parts; it says nothing about how well a real model classifies or rewrites.
 
+## Results
+
+Model `gpt-6-luna` via the OpenAI API, temperature 0, 15 tutorials (the dataset above), Docker
+sandbox, max 4 loops. One run per config. Pass rates count a block as passing only if it ran in the
+target environment and met its assertions.
+
+| config | cases | block pass | tutorial pass | diff acc. | changed recall | verdict exact | unrelated edits | prose edits | unresolved | LLM calls | s/case |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0_original | 15 | 41% | 7% | n/a | n/a | n/a | 0% | 0 | 0% | 0.0 | 1 |
+| 1_llm_only | 15 | 87% | 47% | n/a | n/a | n/a | 1% | 0 | 13% | 5.5 | 42 |
+| 2_dense | 15 | 67% | 27% | 57% | 56% | 29% | 1% | 0 | 33% | 6.5 | 6 |
+| 3_hybrid | 15 | 71% | 33% | 61% | 64% | 43% | 1% | 0 | 29% | 6.6 | 6 |
+| 4_full | 15 | 76% | 33% | 53% | 85% | 55% | 1% | 0 | 24% | 7.5 | 28 |
+| 5_loop | 15 | 88% | 53% | 55% | 88% | 58% | 1% | 0 | 12% | 9.5 | 29 |
+
+Reading it:
+
+- **The pipeline fixes most of the rot.** Untouched tutorials: 41% of blocks, 1 of 15 tutorials.
+  Full pipeline with the loop (`5_loop`): 88% of blocks, 8 of 15 tutorials.
+- **Retrieval alone did not beat the no-retrieval baseline on pass rate.** `1_llm_only` (the model
+  rewriting from its own knowledge, no evidence, edits uncited) reaches 87%; `2_dense`..`4_full`
+  reach 67-76%. These configs only edit a block when a verdict backed by retrieved evidence covers
+  it, so a missed verdict leaves the block broken, while the baseline edits freely. What retrieval
+  buys is **cited, auditable edits**, and changed-symbol recall rising from 56% (dense) to 85%
+  (full): the hybrid, rerank and symbol-index stages help the diff stage find what changed.
+- **The sandbox loop is what closes the gap**: `4_full` 76% to `5_loop` 88%, with no cost in
+  unrelated edits (1% everywhere) and no prose edits at all.
+- **`5_loop` vs `1_llm_only` (88% vs 87%) is a tie** within noise. The claim supported here is
+  "cited and verified edits at no loss of pass rate", not "better pass rate".
+- Diff accuracy (55% for `5_loop`) is the weakest number; much of the remaining failure is
+  behaviour changes that produce wrong output without an error naming any symbol.
+
+Caveats: the model, prompts and the matcher were debugged against this same 15-tutorial dataset
+while the eval ran (see below), so the numbers are tuned-on-the-test-set optimistic for
+`2_dense`..`5_loop`; `1_llm_only` was not tuned. There is no held-out set yet.
+
+What the first runs fixed (all committed, with tests): the OpenAI backend now sends
+`max_completion_tokens`; the diff accepts symbols echoed with a ` (kind)` suffix; evidence is
+cut around the symbol instead of from the start (a long changelog chunk hid the
+`pandas.datetime` removal past the cut); prompts forbid "modernising" edits (a first run added
+`engine="pyarrow"` to a working call); a block broken by the system's own edit is retried; and an
+edit reported under a bare callee (`pandas.read_csv`) is attributed to all matching verdicts
+instead of being dropped. The pre-fix numbers were `4_full` 72% and `5_loop` 84% (kept locally in `runs/eval_v1/`; `runs/` is not committed).
+
 ## Known limitations
 
-- The LLM eval has not run: no end-to-end numbers exist yet. A reasoning model on a small local GPU
-  returned empty replies on every diff call, so a non-reasoning model or a hosted one is needed.
+- One model, one run per config, 15 tutorials, temperature 0: a single block is about 1 point of
+  block pass rate, so differences of a few points are noise. A reasoning model on a small local GPU
+  returned empty replies on every diff call, which is why the eval used a hosted model.
 - `query_rewrite` is pattern matching on common Python errors. Errors that carry no symbol (a
   changed default producing different output, cascades from an earlier block) leave the block
-  `unresolved` rather than guessed at. Pass-rate gains from the loop are unmeasured.
+  `unresolved` rather than guessed at. The loop's gain is measured in Results.
 - The API keeps jobs in memory (lost on restart, 100 kept) and runs one job at a time.
 
 
