@@ -9,7 +9,9 @@ v1 scope: Python tutorials, Pydantic v1 → v2 and pandas 1.x → 2.x (pluggable
 Input: a Markdown file. Output: updated Markdown plus a change log (what changed, why, source
 links, run status per code block).
 
-**Status:** Phases 0–2 complete, Phase 3 (diff/rewrite/assemble + eval dataset) in progress. See
+**Status:** all pipeline code, the eval harness, the feedback loop and the API/UI are built and
+tested (171 tests, a mocked LLM and sandbox where needed). The end-to-end LLM eval (configs 1–5) has
+**not been run yet**, so there are no accuracy or pass-rate numbers for the system itself. See
 [Status](#status) for exactly what exists and what the numbers do and do not show.
 Setup instructions are in [SETUP.md](SETUP.md).
 
@@ -86,8 +88,8 @@ make "runs without error" not the only pass criterion.
     rag/             corpus, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
     sandbox_runner/  Dockerfile + in-container runner
     eval/            dataset/ (15 tutorials), loader, baseline, validate_dataset, metrics, run_eval
-    api/             FastAPI (Phase 5)
-  scripts/           retrieval_sanity.py
+    api/             FastAPI service + static/index.html (single-file UI)
+  scripts/           retrieval_sanity.py, demo.py
   tests/
 ```
 
@@ -98,10 +100,10 @@ make "runs without error" not the only pass criterion.
 | 0 | Scaffold, config, LLM wrapper, state, graph with conditional cycle, sandbox image + smoke test | done |
 | 1 | ingest / extract / resolve_versions / sandbox, baseline on 3 tutorials | done |
 | 2 | Corpus, BM25, dense, RRF, rerank, symbol index, retrieval sanity script | done |
-| 3 | diff, rewrite, assemble (implemented and unit-tested); 15-tutorial eval dataset with hand-fixed references; eval on configs 1–4 | in progress |
+| 3 | diff, rewrite, assemble (implemented and unit-tested); 15-tutorial eval dataset with hand-fixed references; eval runner | code done; LLM eval (configs 1–4) not run |
 | 4 | Sandbox feedback loop (`query_rewrite`) and unresolved handling: implemented and tested with a scripted LLM and sandbox; full ablation needs a real model | code done, not yet evaluated |
-| 5 | FastAPI + side-by-side diff UI | not started |
-| 6 | Polish: ablation results, limitations, demo script | not started |
+| 5 | FastAPI service + side-by-side diff UI (`trf.api.main`), tested with a fake runner and checked in headless Chrome | done |
+| 6 | Polish: demo script, limitations, ablation instructions done; ablation **results** need the real eval | partly done |
 
 ### Evaluation dataset
 
@@ -172,7 +174,51 @@ Caveats: 10 cases, and the rerank blend weight (0.5) was tuned on the same cases
 test, not a result. BM25 alone is a strong baseline on identifier queries; the full pipeline's edge
 over it is small here. The end-to-end pass rate in the Phase 3/4 eval is the real comparison.
 
+## Running it
+
+```bash
+uv sync --extra rag --extra api
+uv run python -m trf.rag.corpus build            # once
+export TRF_LLM_PROVIDER=... TRF_LLM_MODEL=... TRF_LLM_API_KEY=...   # see SETUP.md
+uv run python scripts/demo.py pandas_sales_analysis                   # one tutorial, CLI summary
+uv run uvicorn trf.api.main:app                                       # service + UI on :8000
+```
+
+The UI (`/`) takes pasted or uploaded Markdown and shows, per code block, the original and updated
+code side by side, a status badge, the error of any unresolved block, and every change with its
+cited source links (uncited `llm_prior` edits are labelled as such). API: `POST /api/jobs`,
+`GET /api/jobs/{id}`, `GET /api/jobs/{id}/download`. Jobs are held in memory and run one at a time.
+
+## Reproducing the evaluation
+
+```bash
+uv run python -m trf.eval.validate_dataset        # dataset sanity (Docker); passes today
+uv run python -m trf.eval.run_eval                # configs 0-5, resumable, logs in runs/eval/
+uv run python -m trf.eval.run_eval --configs 4_full 5_loop --cases pandas_timeseries --force
+```
+
+`runs/eval/results.md` is regenerated after every case. Today it contains config 0 only (the
+untouched tutorials in the target environment: 41% of blocks, 1 of 15 tutorials pass). The ablation
+across configs 1–5 is what the LLM eval will fill in; until it has run there is no claim about
+whether retrieval, reranking or the loop help.
+
+### How well does `query_rewrite` read real failures?
+
+Run over the 48 failing blocks of config 0 (real tracebacks from the Docker sandbox): 31 name a
+library symbol and 29 of those name one the dataset labels as changed. Most of the other 19 are
+`NameError`s cascading from an earlier failing block, which the loop resolves by fixing the root
+block, and output mismatches with no API clue in the message. This measures the error parser only,
+not whether the rewrites then pass.
+
 ## Known limitations
+
+- The LLM eval has not run: no end-to-end numbers exist yet. A reasoning model on a small local GPU
+  returned empty replies on every diff call, so a non-reasoning model or a hosted one is needed.
+- `query_rewrite` is pattern matching on common Python errors. Errors that carry no symbol (a
+  changed default producing different output, cascades from an earlier block) leave the block
+  `unresolved` rather than guessed at. Pass-rate gains from the loop are unmeasured.
+- The API keeps jobs in memory (lost on restart, 100 kept) and runs one job at a time.
+
 
 - Fenced blocks indented more than three spaces (e.g. inside list items) are treated as prose.
 - Method-call symbol extraction uses a light, flow-insensitive type tracker, not real type inference.

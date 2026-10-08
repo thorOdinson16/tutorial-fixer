@@ -10,7 +10,7 @@ commands from the repository root.
 | [uv](https://docs.astral.sh/uv/) | Python env + dependency management (installs Python 3.11+ for you) | `uv --version` |
 | Docker (daemon running) | All tutorial code executes **only** in a Docker sandbox, never on the host | `docker info` |
 | Internet access | Corpus fetch (GitHub raw), PyPI version lookup, dependency install during sandbox image builds | |
-| An LLM (optional until Phase 3 runs) | Diff verdicts and rewrites. Any of: local Ollama, an OpenAI-compatible server, Anthropic | see section 5 |
+| An LLM (not needed for tests or retrieval) | Diff verdicts and rewrites. Any of: local Ollama, an OpenAI-compatible server, Anthropic | see section 5 |
 
 Disk/RAM: the `rag` extra pulls in `torch` (a few GB on disk) and downloads two small models
 (~220 MB) on first use. An NVIDIA GPU is not required for retrieval; it only matters if you run a
@@ -22,6 +22,7 @@ local LLM.
 git clone https://github.com/thorOdinson16/tutorial-fixer.git && cd tutorial-fixer
 uv sync                      # core deps + dev tools (pytest, ruff)
 uv sync --extra rag          # retrieval stack: sentence-transformers, numpy
+uv sync --extra rag --extra api   # also the web service (FastAPI, uvicorn); use this to run the UI
 ```
 
 Verify:
