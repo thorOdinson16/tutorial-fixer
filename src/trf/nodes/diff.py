@@ -40,7 +40,10 @@ VERDICT_HELP = """\
 - removed: gone, or replaced by a different construct
   (replacement = what to use instead, or null)
 - behavior_changed: same API, different behaviour/defaults that can break existing code
-- Omit symbols that are unchanged."""
+- Omit symbols that are unchanged.
+A symbol is "changed" only if the evidence says existing code using it breaks or behaves
+differently on the target version. New optional features, new engines or backends, performance
+improvements and additions are NOT changes: omit those symbols."""
 
 
 _KIND_SUFFIX = re.compile(

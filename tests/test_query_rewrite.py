@@ -191,3 +191,24 @@ def test_downstream_cascade_is_not_warned_about_when_the_root_block_is_handled()
     # with nothing else explained, the same cascade IS reported
     alone = make_query_rewrite()(GraphState(blocks=[cascade], libraries=["pandas"]))
     assert any("b3" in w for w in alone["warnings"])
+
+
+def test_block_broken_by_its_own_edit_is_retried_under_the_same_verdicts():
+    from trf.state import ChangeLogEntry
+
+    b = CodeBlock.new("b2", 'pd.read_csv(f, engine="pyarrow")\n').model_copy(
+        update={
+            "source": 'pd.read_csv(f, engine="pyarrow")\n',
+            "original_source": "pd.read_csv(f)\n",
+            "status": "failing",
+            "last_error": "ImportError: Missing optional dependency 'pyarrow'.",
+        }
+    )
+    entry = ChangeLogEntry(
+        block_id="b2", symbol="pandas.read_csv", description="x", evidence_chunk_ids=["c1"]
+    )
+    s = GraphState(blocks=[b], libraries=["pandas"], change_log=[entry])
+    out = make_query_rewrite()(s)
+    assert out["error_symbols"] == {"b2": ["pandas.read_csv"]}
+    assert out["fresh_symbols"] == []  # nothing new to retrieve; only the rewrite is retried
+    assert any("retrying b2" in w for w in out["warnings"])

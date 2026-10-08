@@ -160,6 +160,17 @@ def make_query_rewrite() -> Callable[[GraphState], dict]:
             error = "\n".join(filter(None, [traces.get(b.id), b.last_error]))
             hits = symbols_from_error(error, b.source, state.libraries, [*known, *new])
             if not hits:
+                edited = [
+                    e.symbol
+                    for e in state.change_log
+                    if e.block_id == b.id and e.kind == "api_change" and e.symbol
+                ]
+                if edited and "downstream effect" not in error:
+                    # our own edit broke this block in a way the error does not explain: retry it
+                    # with the error in the prompt and the verdicts it was edited under
+                    error_symbols[b.id] = list(dict.fromkeys(edited))
+                    warnings.append(f"query_rewrite: retrying {b.id}, broken by its own edit")
+                    continue
                 unexplained.append((b.id, b.last_error or "unknown error"))
                 continue
             error_symbols[b.id] = [n for n, _ in hits]

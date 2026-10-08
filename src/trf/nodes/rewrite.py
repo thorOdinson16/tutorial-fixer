@@ -30,7 +30,9 @@ from trf.state import ChangeLogEntry, Chunk, CodeBlock, DiffVerdict, GraphState
 SYSTEM = (
     "You update Python tutorial code so it runs on newer library versions. Make the smallest "
     "edits that are needed: keep structure, names, comments, prints and output identical. "
-    "Never add explanations or markdown fences."
+    "Apply only the listed changes (and, if an error is given, the fix for that error). Never add "
+    "arguments, engines, dependencies or features the code did not already use, and never "
+    "'modernise' code that works. Never add explanations or markdown fences."
 )
 MAX_EVIDENCE_CHUNKS = 6
 CHUNK_CHARS = 700
