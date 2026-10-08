@@ -25,8 +25,18 @@ def _calls_recorder(order):
 
         return node
 
+    def query_rewrite(state):
+        order.append("query_rewrite")
+        return {
+            "error_symbols": {b.id: ["pandas.x"] for b in state.blocks if b.status == "failing"}
+        }
+
     return {
-        n: mk(n) for n in ["ingest", "extract", "resolve_versions", "retrieve", "diff", "rewrite"]
+        **{
+            n: mk(n)
+            for n in ["ingest", "extract", "resolve_versions", "retrieve", "diff", "rewrite"]
+        },
+        "query_rewrite": query_rewrite,
     }
 
 
@@ -63,7 +73,35 @@ def test_cycle_stops_at_cap():
 
 def test_router_respects_flag_and_state():
     failing = GraphState(blocks=[CodeBlock.new("b", "x").model_copy(update={"status": "failing"})])
-    assert route_after_sandbox(failing) == "retrieve"
+    assert route_after_sandbox(failing) == "query_rewrite"
     assert route_after_sandbox(failing, PipelineFlags(use_sandbox_loop=False)) == "assemble"
     assert route_after_sandbox(failing.model_copy(update={"loop_count": 4})) == "assemble"
     assert route_after_sandbox(GraphState()) == "assemble"
+
+
+def test_loop_ends_early_when_errors_name_no_symbol():
+    """query_rewrite finds nothing to retrieve -> go straight to assemble, block stays unresolved."""
+    order = []
+    nodes = {
+        **_calls_recorder(order),
+        "query_rewrite": lambda s: {"error_symbols": {}},
+        "sandbox": _sandbox_failing_until(999),
+    }
+    out = build_graph(nodes).invoke(
+        GraphState(blocks=[CodeBlock.new("b1", "x")], max_loops=4), {"recursion_limit": 100}
+    )
+    assert out["loop_count"] == 1
+    assert out["unresolved_block_ids"] == ["b1"]
+    assert out["blocks"][0].status == "unresolved"
+
+
+def test_route_after_query_rewrite():
+    from trf.graph import route_after_query_rewrite
+
+    failing = CodeBlock.new("b", "x").model_copy(update={"status": "failing"})
+    with_syms = GraphState(blocks=[failing], error_symbols={"b": ["pandas.DataFrame.append"]})
+    assert route_after_query_rewrite(with_syms) == "retrieve"
+    assert route_after_query_rewrite(GraphState(blocks=[failing])) == "assemble"
+    # no-retrieval config retries from the error text alone
+    no_ret = PipelineFlags(use_bm25=False, use_dense=False, use_symbol_index=False)
+    assert route_after_query_rewrite(GraphState(blocks=[failing]), no_ret) == "retrieve"

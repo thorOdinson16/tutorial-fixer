@@ -1,0 +1,158 @@
+import pytest
+
+from trf.nodes.query_rewrite import make_query_rewrite, symbols_from_error
+from trf.state import CodeBlock, DiffVerdict, GraphState, RunResult, Symbol
+
+PANDAS = ["pandas"]
+PYDANTIC = ["pydantic"]
+
+
+def names(error, source="", libs=PANDAS, known=()):
+    return [n for n, _ in symbols_from_error(error, source, libs, list(known))]
+
+
+@pytest.mark.parametrize(
+    "error, libs, expected",
+    [
+        (
+            "AttributeError: 'DataFrame' object has no attribute 'append'",
+            PANDAS,
+            ["pandas.DataFrame.append"],
+        ),
+        (
+            "AttributeError: module 'pandas' has no attribute 'datetime'",
+            PANDAS,
+            ["pandas.datetime"],
+        ),
+        (
+            "TypeError: read_csv() got an unexpected keyword argument 'squeeze'",
+            PANDAS,
+            ["pandas.read_csv(squeeze)"],
+        ),
+        (
+            "AttributeError: 'User' object has no attribute 'dict'",
+            PYDANTIC,
+            ["pydantic.BaseModel.dict"],
+        ),
+        (
+            "AttributeError: type object 'User' has no attribute 'parse_obj'",
+            PYDANTIC,
+            ["pydantic.BaseModel.parse_obj"],
+        ),
+        (
+            "pydantic.errors.PydanticImportError: `BaseSettings` has been moved to the "
+            "`pydantic-settings` package.",
+            PYDANTIC,
+            ["pydantic.BaseSettings"],
+        ),
+        (
+            "ImportError: cannot import name 'parse_obj_as' from 'pydantic'",
+            PYDANTIC,
+            ["pydantic.parse_obj_as"],
+        ),
+    ],
+)
+def test_error_patterns(error, libs, expected):
+    assert names(error, libs=libs) == expected
+
+
+def test_removed_keyword_is_attached_to_its_call():
+    err = "pydantic.errors.PydanticUserError: `regex` is removed. use `pattern` instead"
+    src = "class U(BaseModel):\n    name: str = Field(..., regex='^a')\n"
+    assert names(err, src, PYDANTIC) == ["pydantic.Field(regex)"]
+
+
+def test_dunder_root_maps_to_basemodel():
+    err = "PydanticUserError: `__root__` models are no longer supported in v2"
+    assert names(err, libs=PYDANTIC) == ["pydantic.BaseModel.__root__"]
+
+
+def test_known_symbol_is_reused_not_reinvented():
+    known = [Symbol(name="pandas.DataFrame.to_csv(line_terminator)", library="pandas")]
+    err = "TypeError: NDFrame.to_csv() got an unexpected keyword argument 'line_terminator'"
+    assert names(err, known=known, libs=PANDAS) == ["pandas.DataFrame.to_csv(line_terminator)"]
+
+
+def test_unrelated_error_names_nothing():
+    assert names("ZeroDivisionError: division by zero") == []
+    assert names("NameError: name 'df' is not defined") == []
+
+
+def test_ambiguous_library_is_not_guessed():
+    # two libraries, a bare name the source does not tie to either -> no symbol, no guess
+    assert names("TypeError: foo() got an unexpected keyword argument 'x'", "foo(x=1)",
+                 ["pandas", "pydantic"]) == []  # fmt: skip
+
+
+def _state(error, source="df.append(row)\n", traceback=None):
+    b = CodeBlock.new("b1", source).model_copy(update={"status": "failing", "last_error": error})
+    results = [RunResult(block_id="b1", exit_code=1, traceback=traceback)] if traceback else []
+    return GraphState(blocks=[b], libraries=["pandas"], run_results=results,
+                      old_versions={"pandas": "1.3.5"})  # fmt: skip
+
+
+def test_node_adds_fresh_symbols_and_maps_block():
+    out = make_query_rewrite()(
+        _state("AttributeError: 'DataFrame' object has no attribute 'append'")
+    )
+    assert out["error_symbols"] == {"b1": ["pandas.DataFrame.append"]}
+    assert out["fresh_symbols"] == ["pandas.DataFrame.append"]
+    (sym,) = out["symbols"]
+    assert (
+        sym.library == "pandas" and sym.old_version == "1.3.5" and sym.first_seen_in_block == "b1"
+    )
+
+
+def test_node_uses_full_traceback_when_present():
+    tb = "Traceback (most recent call last):\n  ...\nAttributeError: 'Series' object has no attribute 'iteritems'"
+    out = make_query_rewrite()(_state("AttributeError: ...", traceback=tb))
+    assert out["error_symbols"] == {"b1": ["pandas.Series.iteritems"]}
+
+
+def test_node_known_symbol_without_verdict_is_fresh_but_not_duplicated():
+    s = _state("AttributeError: 'DataFrame' object has no attribute 'append'")
+    s = s.model_copy(update={"symbols": [Symbol(name="pandas.DataFrame.append", library="pandas")]})
+    out = make_query_rewrite()(s)
+    assert out["error_symbols"] == {"b1": ["pandas.DataFrame.append"]}
+    assert out["fresh_symbols"] == ["pandas.DataFrame.append"]  # diff had cleared it; re-judge
+    assert len(out["symbols"]) == 1
+
+
+def test_node_symbol_with_verdict_is_not_fresh():
+    s = _state("AttributeError: 'DataFrame' object has no attribute 'append'")
+    s = s.model_copy(
+        update={
+            "symbols": [Symbol(name="pandas.DataFrame.append", library="pandas")],
+            "verdicts": [
+                DiffVerdict(
+                    symbol="pandas.DataFrame.append",
+                    verdict="removed",
+                    evidence_chunk_ids=["c1"],
+                    confidence=0.9,
+                )
+            ],
+        }
+    )
+    out = make_query_rewrite()(s)
+    assert out["error_symbols"] == {"b1": ["pandas.DataFrame.append"]}
+    assert out["fresh_symbols"] == []
+
+
+def test_node_warns_and_skips_unexplained_error():
+    out = make_query_rewrite()(_state("ZeroDivisionError: division by zero"))
+    assert out["error_symbols"] == {}
+    assert any("no library symbol identified for b1" in w for w in out["warnings"])
+
+
+def test_node_ignores_passing_and_non_python_blocks():
+    s = GraphState(
+        blocks=[
+            CodeBlock.new("ok", "x").model_copy(update={"status": "passing"}),
+            CodeBlock.new("sh", "pip install x", lang="bash").model_copy(
+                update={"status": "failing", "last_error": "boom"}
+            ),
+        ],
+        libraries=["pandas"],
+    )
+    out = make_query_rewrite()(s)
+    assert out["error_symbols"] == {} and out["warnings"] == []

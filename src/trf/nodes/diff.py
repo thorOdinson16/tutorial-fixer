@@ -5,6 +5,8 @@ thinking cost per call, so per-symbol calls are far too slow, but one giant prom
 context window. Every recorded verdict must cite evidence chunk ids that were actually shown to
 the model; verdicts that cite nothing valid are dropped, never kept as claims.
 A symbol with no recorded verdict means "no change claimed" (unchanged).
+In loop passes (loop_count > 0) only the symbols `query_rewrite` derived from sandbox errors are
+classified, and their verdicts are added to the existing ones.
 
 Without retrieval (the LLM-only baseline) there is nothing to cite, so this stage is skipped.
 """
@@ -59,17 +61,23 @@ def _clip(text: str, n: int = CHUNK_CHARS) -> str:
 
 def build_prompt(
     library: str, old: str | None, target: str, symbols: list[Symbol], chunks: list[Chunk],
-    per_symbol: dict[str, list[str]],
+    per_symbol: dict[str, list[str]], observed: dict[str, str] | None = None,
 ) -> str:  # fmt: skip
     ev = "\n".join(f"[{c.id}] {_clip(c.text)}" for c in chunks)
     syms = "\n".join(
         f"- {s.name} ({s.kind}); candidate evidence: {', '.join(per_symbol[s.name])}"
         for s in symbols
     )
+    seen = "".join(
+        f"- {n}: running the tutorial failed with: {err}\n" for n, err in (observed or {}).items()
+    )
+    seen = (
+        f"OBSERVED FAILURES (this symbol is known to break on {target}):\n{seen}\n" if seen else ""
+    )
     return (
         f"Library: {library}. The tutorial was written for {old or 'an older version'}; "
         f"the target version is {target}.\n\nEVIDENCE CHUNKS (cite by id):\n{ev}\n\n"
-        f"SYMBOLS USED IN THE TUTORIAL:\n{syms}\n\n"
+        f"SYMBOLS USED IN THE TUTORIAL:\n{syms}\n\n{seen}"
         f"Verdict meanings:\n{VERDICT_HELP}\n\n"
         "Return the symbols that CHANGED. For each: the exact symbol string from the list, the "
         "verdict, the replacement (or null), the chunk ids that state the change (ids copied "
@@ -88,11 +96,19 @@ def make_diff(
             return {}
         verdicts: list[DiffVerdict] = []
         warnings: list[str] = []
+        only = set(state.fresh_symbols) if state.loop_count > 0 else None
+        errors = {
+            n: (b.last_error or "")[:300]
+            for b in state.blocks
+            for n in state.error_symbols.get(b.id, [])
+            if b.status == "failing"
+        }
         for lib in state.libraries:
             target = state.target_versions.get(lib)
             syms = [
                 s for s in state.symbols
                 if s.library == lib and s.kind not in SKIP_KINDS and state.evidence.get(s.name)
+                and (only is None or s.name in only)
             ][:MAX_SYMBOLS]  # fmt: skip
             if not target or not syms:
                 continue
@@ -114,7 +130,13 @@ def make_diff(
                 try:
                     out = holder["llm"].structured(
                         build_prompt(
-                            lib, state.old_versions.get(lib), target, batch, chunks, per_symbol
+                            lib,
+                            state.old_versions.get(lib),
+                            target,
+                            batch,
+                            chunks,
+                            per_symbol,
+                            {s.name: errors[s.name] for s in batch if errors.get(s.name)},
                         ),
                         DiffBatch,
                         system=SYSTEM,
@@ -146,6 +168,9 @@ def make_diff(
                             confidence=v.confidence,
                         )  # fmt: skip
                     )
+        if only is not None:
+            new = {v.symbol for v in verdicts}
+            verdicts = [v for v in state.verdicts if v.symbol not in new] + verdicts
         return {"verdicts": verdicts, "warnings": [*state.warnings, *warnings]}
 
     return diff

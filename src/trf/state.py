@@ -140,6 +140,8 @@ class GraphState(BaseModel):
     verdicts: list[DiffVerdict] = Field(default_factory=list)
     run_results: list[RunResult] = Field(default_factory=list)
     change_log: list[ChangeLogEntry] = Field(default_factory=list)
+    error_symbols: dict[str, list[str]] = Field(default_factory=dict)  # failing block -> symbols
+    fresh_symbols: list[str] = Field(default_factory=list)  # symbols found from errors this loop
     loop_count: int = 0
     max_loops: int = 4
     unresolved_block_ids: list[str] = Field(default_factory=list)

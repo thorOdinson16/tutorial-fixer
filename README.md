@@ -19,7 +19,9 @@ Setup instructions are in [SETUP.md](SETUP.md).
 flowchart LR
     A[ingest] --> B[extract] --> C[resolve_versions] --> D[retrieve] --> E[diff] --> F[rewrite] --> G[sandbox]
     G -->|all pass, or loop_count >= max_loops| H[assemble]
-    G -->|failures and loop_count < max_loops| D
+    G -->|failures and loop_count < max_loops| Q[query_rewrite]
+    Q -->|a failing block names a library symbol| D
+    Q -->|nothing to retry| H
 ```
 
 `graph.py` is a LangGraph `StateGraph` with a conditional cycle. Every node is a pure-ish function
@@ -34,6 +36,7 @@ flowchart LR
 | `diff` | One batched LLM call per library classifies symbols `unchanged / renamed / signature_changed / removed / behavior_changed`; every verdict must cite chunk ids actually shown to the model |
 | `rewrite` | Surgical per-block LLM edits (prose is never touched); output must parse and every change must map to a cited verdict. Deterministic edits for install pins and newly required packages |
 | `sandbox` | Builds a cached image with the exact target versions, then runs all blocks in one network-less container with per-block status, traceback, stdout and assertions |
+| `query_rewrite` | Loop only: reads each failing block's traceback and names the library symbol that broke (`'DataFrame' object has no attribute 'append'` -> `pandas.DataFrame.append`, `unexpected keyword argument 'squeeze'` -> `pandas.read_csv(squeeze)`). Deterministic pattern matching, no LLM call. Only symbols still lacking evidence or a verdict are retrieved and diffed again; the diff prompt gets the observed failure. If no symbol can be named the block stays failing and ends `unresolved` |
 | `assemble` | Final Markdown + change log. Blocks still failing become `unresolved` with their last error; never reported as passing |
 
 ### Retrieval
@@ -79,7 +82,7 @@ make "runs without error" not the only pass criterion.
     state.py         Pydantic models + GraphState
     graph.py         LangGraph wiring
     pypi.py          release metadata for version resolution
-    nodes/           ingest, extract, resolve_versions, retrieve, diff, rewrite, sandbox, assemble
+    nodes/           ingest, extract, resolve_versions, retrieve, diff, rewrite, sandbox, query_rewrite, assemble
     rag/             corpus, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
     sandbox_runner/  Dockerfile + in-container runner
     eval/            dataset/ (15 tutorials), loader, baseline, validate_dataset, metrics, run_eval
@@ -96,7 +99,7 @@ make "runs without error" not the only pass criterion.
 | 1 | ingest / extract / resolve_versions / sandbox, baseline on 3 tutorials | done |
 | 2 | Corpus, BM25, dense, RRF, rerank, symbol index, retrieval sanity script | done |
 | 3 | diff, rewrite, assemble (implemented and unit-tested); 15-tutorial eval dataset with hand-fixed references; eval on configs 1–4 | in progress |
-| 4 | Sandbox feedback loop (`query_rewrite`), unresolved handling, full ablation | not started |
+| 4 | Sandbox feedback loop (`query_rewrite`) and unresolved handling: implemented and tested with a scripted LLM and sandbox; full ablation needs a real model | code done, not yet evaluated |
 | 5 | FastAPI + side-by-side diff UI | not started |
 | 6 | Polish: ablation results, limitations, demo script | not started |
 

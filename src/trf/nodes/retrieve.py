@@ -1,6 +1,7 @@
 """Per-symbol retrieval: fill `state.evidence[symbol.name]` with the top chunks.
 
-Per-error retrieval (query rewritten from a traceback) arrives with the loop in Phase 4.
+In loop passes (loop_count > 0) only the symbols `query_rewrite` just derived from sandbox
+errors are retrieved; earlier evidence is kept.
 The pipeline factory is injectable so the node is testable without models or a corpus.
 """
 
@@ -36,7 +37,10 @@ def make_retrieve(
 
     def retrieve(state: GraphState) -> dict:
         evidence = dict(state.evidence)
+        fresh = set(state.fresh_symbols)
         for s in state.symbols:
+            if state.loop_count > 0 and s.name not in fresh:
+                continue
             target = state.target_versions.get(s.library)
             if target is None:  # not a library we migrate
                 continue

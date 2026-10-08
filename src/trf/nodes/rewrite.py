@@ -2,7 +2,8 @@
 
 Pass 1 (loop_count == 0): rewrite python blocks that use a symbol with a non-unchanged verdict
 (or every python block in the no-retrieval LLM-only baseline). Later passes: only blocks the
-sandbox reported failing, with their last error in the prompt.
+sandbox reported failing, with their last error in the prompt and the verdicts for the symbols
+`query_rewrite` tied to that error (cited mode skips a failing block that has none).
 
 Safeguards, all failing safe to "keep the original block":
   * the new code must parse; one retry feeds the SyntaxError back;
@@ -213,11 +214,13 @@ def make_rewrite(
             if b.lang != "python":
                 continue
             used = used_by_block.get(b.id, set())
+            if state.loop_count > 0:
+                used = used | set(state.error_symbols.get(b.id, []))
             mine = [v for k, v in verdicts.items() if k in used]
             if state.loop_count == 0:
                 if cited_mode and not mine:
                     continue
-            elif b.status != "failing":
+            elif b.status != "failing" or (cited_mode and not mine):
                 continue
             evidence_ids = list(dict.fromkeys(i for v in mine for i in v.evidence_chunk_ids))
             chunks = [chunk_by_id[i] for i in evidence_ids if i in chunk_by_id]

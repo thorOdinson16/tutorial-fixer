@@ -1,7 +1,8 @@
 """LangGraph wiring.
 
 ingest -> extract -> resolve_versions -> retrieve -> diff -> rewrite -> sandbox, then
-sandbox -> assemble (all pass / cap hit) or sandbox -> retrieve (failures, under cap).
+sandbox -> assemble (all pass / cap hit) or sandbox -> query_rewrite -> retrieve (failures,
+under cap); query_rewrite -> assemble when no failing block names a library symbol.
 """
 
 from __future__ import annotations
@@ -13,7 +14,17 @@ from langgraph.graph import END, START, StateGraph
 
 from trf.config import PipelineFlags
 from trf.llm import LLM
-from trf.nodes import assemble, diff, extract, ingest, resolve_versions, retrieve, rewrite, sandbox
+from trf.nodes import (
+    assemble,
+    diff,
+    extract,
+    ingest,
+    query_rewrite,
+    resolve_versions,
+    retrieve,
+    rewrite,
+    sandbox,
+)
 from trf.state import GraphState
 
 Node = Callable[[GraphState], dict]
@@ -30,6 +41,7 @@ def default_nodes(flags: PipelineFlags | None = None, llm: LLM | None = None) ->
         "diff": diff.make_diff(llm, flags),
         "rewrite": rewrite.make_rewrite(llm, flags),
         "sandbox": sandbox.sandbox,
+        "query_rewrite": query_rewrite.query_rewrite,
         "assemble": assemble.assemble,
     }
 
@@ -39,12 +51,23 @@ RECURSION_LIMIT = 200
 
 def route_after_sandbox(
     state: GraphState, flags: PipelineFlags | None = None
-) -> Literal["retrieve", "assemble"]:
+) -> Literal["query_rewrite", "assemble"]:
     flags = flags or PipelineFlags()
     failing = [b for b in state.blocks if b.status == "failing"]
     if not failing or not flags.use_sandbox_loop or state.loop_count >= state.max_loops:
         return "assemble"
-    return "retrieve"
+    return "query_rewrite"
+
+
+def route_after_query_rewrite(
+    state: GraphState, flags: PipelineFlags | None = None
+) -> Literal["retrieve", "assemble"]:
+    """Loop again only if a failing block has something to act on (nothing to retry otherwise)."""
+    flags = flags or PipelineFlags()
+    failing = [b for b in state.blocks if b.status == "failing"]
+    if not flags.retrieval_enabled:  # no-retrieval config: rewrite retries from the error alone
+        return "retrieve" if failing else "assemble"
+    return "retrieve" if any(state.error_symbols.get(b.id) for b in failing) else "assemble"
 
 
 def build_graph(
@@ -71,6 +94,11 @@ def build_graph(
     g.add_conditional_edges(
         "sandbox",
         lambda s: route_after_sandbox(s, flags),
+        {"query_rewrite": "query_rewrite", "assemble": "assemble"},
+    )
+    g.add_conditional_edges(
+        "query_rewrite",
+        lambda s: route_after_query_rewrite(s, flags),
         {"retrieve": "retrieve", "assemble": "assemble"},
     )
     g.add_edge("assemble", END)
