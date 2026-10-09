@@ -151,3 +151,22 @@ def test_change_log_lists_blocks_whose_output_changed_vs_the_original():
     assert "Output compared" not in build_change_log(
         s.model_copy(update={"old_outputs": {}}), blocks
     )
+
+
+def test_an_old_environment_that_crashes_does_not_stop_the_precheck():
+    s = prepared()
+    py = [b.id for b in s.blocks if b.lang == "python"]
+
+    def runner(state, mode, settings):
+        if mode == "old":
+            raise RuntimeError("docker run failed (1): SyntaxError in runner")
+        return state.model_copy(update={"run_results": [ran(i) for i in py]})
+
+    out = make_precheck(ON, runner=runner, settings=object())(s)
+    assert out["protected_blocks"] == py
+    assert any("old environment not run (RuntimeError" in w for w in out["warnings"])
+
+
+def test_old_environments_never_ask_for_a_python_the_runner_cannot_run():
+    assert old_python({"matplotlib": "2.2.5"}) == "3.7"
+    assert old_python({"matplotlib": "1.5.3"}) == "3.7"

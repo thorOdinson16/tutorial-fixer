@@ -32,7 +32,7 @@ OLD_PYTHON_FOR: dict[str, list[tuple[str, str]]] = {
     "pandas": [("1.1.4", "3.8"), ("1.3.4", "3.9")],
     "numpy": [("1.19.0", "3.8"), ("1.21.3", "3.9")],
     "sklearn": [("0.22.1", "3.7"), ("0.24.0", "3.8"), ("1.0.1", "3.9")],
-    "matplotlib": [("3.0.0", "3.6"), ("3.2.0", "3.7"), ("3.3.0", "3.8"), ("3.5.0", "3.9")],
+    "matplotlib": [("3.2.0", "3.7"), ("3.3.0", "3.8"), ("3.5.0", "3.9")],  # the runner needs >= 3.7
 }
 
 Runner = Callable[[GraphState, str, SandboxSettings], GraphState]
@@ -104,6 +104,10 @@ def make_precheck(
             old = runner(state, "old", st)
         except SystemExit as e:  # old version unknown
             warnings.append(f"precheck: old environment not run ({e})")
+        except Exception as e:  # an old environment that cannot run is not a reason to stop
+            warnings.append(
+                f"precheck: old environment not run ({type(e).__name__}: {str(e)[:120]})"
+            )
         protected, drift = compare(target, old)
         if f.fix_warnings:  # a block that runs but warns is exactly what that mode may edit
             from trf.nodes.dewarn import warned_blocks
