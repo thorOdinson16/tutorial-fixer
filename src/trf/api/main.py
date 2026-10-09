@@ -93,6 +93,7 @@ class BlockView(BaseModel):
     changed: bool
     output_matches: bool | None = None  # same stdout as the original in its old env (if known)
     diagnosis: str | None = None  # plain-language reason an unresolved block is not version rot
+    downstream_of: str | None = None  # the earlier block whose failure probably caused this one
 
 
 class ChangeView(BaseModel):
@@ -118,8 +119,12 @@ class Summary(BaseModel):
     passing: int
     unresolved: int
     loops_used: int
+    downstream: int = 0  # unresolved blocks that follow an earlier failure
     output_compared: int = 0
     output_same: int = 0
+
+
+_DOWNSTREAM = re.compile(r" *\[after earlier failure in (b\d+); may be a downstream effect\]")
 
 
 class JobResult(BaseModel):
@@ -287,6 +292,10 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
             total_python_blocks=len(py_blocks),
             passing=sum(b.status == "passing" for b in py_blocks),
             unresolved=sum(b.status == "unresolved" for b in py_blocks),
+            downstream=sum(
+                b.status == "unresolved" and "downstream effect" in (b.last_error or "")
+                for b in py_blocks
+            ),
             loops_used=final.loop_count,
             output_compared=len(matches),
             output_same=sum(matches.values()),
@@ -296,11 +305,14 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
                 id=b.id,
                 lang=b.lang,
                 status=b.status,
-                last_error=b.last_error,
+                last_error=_DOWNSTREAM.sub("", b.last_error) if b.last_error else None,
                 original_source=b.original_source,
                 source=b.source,
                 changed=b.source != b.original_source,
                 output_matches=matches.get(b.id),
+                downstream_of=(
+                    m.group(1) if b.last_error and (m := _DOWNSTREAM.search(b.last_error)) else None
+                ),
                 diagnosis=(
                     d.text
                     if b.status in ("failing", "unresolved")

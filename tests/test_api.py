@@ -94,6 +94,7 @@ def test_job_completes_with_result() -> None:
             "passing": 1,
             "unresolved": 1,
             "loops_used": 2,
+            "downstream": 0,
             "output_compared": 0,
             "output_same": 0,
         }
@@ -361,3 +362,20 @@ def test_config_lists_stages_and_modes_and_static_files_are_served():
     assert set(cfg["modes"]) == {"protect", "repair", "prose", "warnings"}
     assert js.status_code == 200 and "javascript" in js.headers["content-type"]
     assert css.status_code == 200 and "css" in css.headers["content-type"]
+
+
+def test_blocks_after_an_earlier_failure_are_marked_and_counted():
+    root = CodeBlock(
+        id="b1", source="a\n", original_source="a\n", status="unresolved", last_error="NameError: a"
+    )
+    after = CodeBlock(
+        id="b2",
+        source="b\n",
+        original_source="b\n",
+        status="unresolved",
+        last_error="NameError: b [after earlier failure in b1; may be a downstream effect]",
+    )
+    result = build_result("", GraphState(tutorial_md="", blocks=[root, after]))
+    assert [b.downstream_of for b in result.blocks] == [None, "b1"]
+    assert result.blocks[1].last_error == "NameError: b"
+    assert result.summary.unresolved == 2 and result.summary.downstream == 1

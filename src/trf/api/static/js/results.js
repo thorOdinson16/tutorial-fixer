@@ -49,13 +49,14 @@ function blockCard(block, changes) {
   const card = el("details", "card block");
   card.dataset.status = block.status;
   card.dataset.changed = block.changed ? "1" : "0";
-  if (block.status !== "passing") card.open = true;
+  if (block.status !== "passing" && !block.downstream_of) card.open = true;
   const head = el("summary");
   head.appendChild(el("span", "block-title", "Block " + block.id));
   head.appendChild(el("span", "muted", block.lang || "-"));
   const badge = BADGE[block.status] || BADGE.pending;
   head.appendChild(el("span", "badge " + badge[0], badge[1]));
   if (block.changed) head.appendChild(el("span", "tag", "edited"));
+  if (block.downstream_of) head.appendChild(el("span", "tag uncited", "follows " + block.downstream_of));
   if (block.output_matches === true) head.appendChild(el("span", "tag cited", "same output as before"));
   if (block.output_matches === false) head.appendChild(el("span", "badge failing", "output differs from the original"));
   card.appendChild(head);
@@ -93,11 +94,12 @@ function blocksPane(result) {
   const list = el("div");
   const defs = [
     ["all", "All", () => true],
-    ["problem", "Needs attention", (b) => b.status !== "passing"],
+    ["problem", "Needs attention", (b) => b.status !== "passing" && !b.downstream_of],
+    ["after", "After a failure", (b) => Boolean(b.downstream_of)],
     ["changed", "Edited", (b) => b.changed],
     ["same", "Untouched", (b) => !b.changed],
   ];
-  let active = result.blocks.some((b) => b.status !== "passing") ? "problem" : "all";
+  let active = result.blocks.some((b) => b.status !== "passing" && !b.downstream_of) ? "problem" : "all";
   const cards = py.map((b) => ({ b, node: blockCard(b, byBlock[b.id] || []) }));
   const buttons = [];
   const apply = () => {
@@ -221,7 +223,11 @@ export function renderResult(container, jobId, title, result) {
   append(
     tiles,
     tile(s.passing + " / " + s.total_python_blocks, "code blocks that run", allGood ? "good" : ""),
-    tile(String(s.unresolved), "could not be fixed", s.unresolved ? "bad" : ""),
+    tile(
+      String(s.unresolved - (s.downstream || 0)),
+      s.downstream ? "could not be fixed (" + s.downstream + " more follow them)" : "could not be fixed",
+      s.unresolved ? "bad" : "",
+    ),
     tile(String(edited), "blocks edited"),
     tile(String(result.changes.length), "changes listed"),
   );
