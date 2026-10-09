@@ -8,6 +8,9 @@ in a sandbox.
 Scope: Python tutorials and six libraries, each with its own release-note corpus: **pandas** 1.x → 2.x,
 **pydantic** v1 → v2, **NumPy** 1.x → 2.x, **SQLAlchemy** 1.x → 2.x, **scikit-learn** 0.x → 1.x and
 **Matplotlib** 2.x/3.x → latest 3.x. Libraries are pluggable: see [Adding a library](#adding-a-library).
+Beyond version fixes it can also repair defects that are not version rot (forgotten imports and
+packages) and keep the explanation text in step with the code; see
+[Beyond version fixes](#beyond-version-fixes).
 Input: a Markdown file. Output: updated Markdown plus a change log (what changed, why, source
 links, run status per code block).
 
@@ -21,12 +24,16 @@ Setup instructions are in [SETUP.md](SETUP.md).
 
 ```mermaid
 flowchart LR
-    A[ingest] --> B[extract] --> C[resolve_versions] --> D[retrieve] --> E[diff] --> F[rewrite] --> G[sandbox]
-    G -->|all pass, or loop_count >= max_loops| H[assemble]
+    A[ingest] --> P0[prerepair] --> B[extract] --> C[resolve_versions] --> P1[precheck] --> D[retrieve]
+    D --> E[diff] --> F[rewrite] --> G[sandbox]
+    G -->|all pass, or loop_count >= max_loops| R[repair]
     G -->|failures and loop_count < max_loops| Q[query_rewrite]
     Q -->|a failing block names a library symbol| D
-    Q -->|nothing to retry| H
+    Q -->|nothing to retry| R
+    R --> PR[prose] --> H[assemble]
 ```
+
+`prerepair`, `precheck`, `repair` and `prose` are opt-in stages (no-ops unless their flag is on).
 
 `graph.py` is a LangGraph `StateGraph` with a conditional cycle. Every node is a pure-ish function
 (`GraphState` in, state patch out), typed with Pydantic, and unit-testable with a mocked LLM.
@@ -35,12 +42,16 @@ flowchart LR
 |---|---|
 | `ingest` | Lossless Markdown split into prose and code segments (re-rendering gives back the exact input), language detection, tutorial date inference, version pins from `pip install` lines |
 | `extract` | AST analysis: libraries, imported/used symbols (`pandas.DataFrame.append`, `pydantic.Field(regex)`, `...Config.orm_mode`), install commands, extra third-party packages |
+| `prerepair` | Opt-in. Adds imports a tutorial forgot (`np`, `pd`, `plt`, `List`, ...) before symbols are extracted, found by static analysis |
 | `resolve_versions` | Old version from exact pin, then range pin, then tutorial date (never guessed); target = latest PyPI release within the migration's target major, or a user pin |
-| `retrieve` | Per-symbol retrieval over the corpus (see below) |
+| `precheck` | Opt-in (`protect_working_blocks`). Runs the ORIGINAL tutorial in its target and old environments; blocks that already run (with unchanged output) are never edited |
+| `retrieve` | Per-symbol retrieval over the corpus (see below); in loop passes it also queries with the observed error message |
 | `diff` | One batched LLM call per library classifies symbols `unchanged / renamed / signature_changed / removed / behavior_changed`; every verdict must cite chunk ids actually shown to the model |
-| `rewrite` | Surgical per-block LLM edits (prose is never touched); output must parse and every change must map to a cited verdict. Deterministic edits for install pins and newly required packages |
+| `rewrite` | Surgical per-block LLM edits (prose is untouched unless `update_prose` is on); output must parse and every change must map to a cited verdict. Deterministic edits for install pins and newly required packages |
 | `sandbox` | Builds a cached image with the exact target versions, then runs all blocks in one network-less container with per-block status, traceback, stdout and assertions |
 | `query_rewrite` | Loop only: reads each failing block's traceback and names the library symbol that broke (`'DataFrame' object has no attribute 'append'` -> `pandas.DataFrame.append`, `unexpected keyword argument 'squeeze'` -> `pandas.read_csv(squeeze)`). Deterministic pattern matching, no LLM call. Only symbols still lacking evidence or a verdict are retrieved and diffed again; the diff prompt gets the observed failure. If no symbol can be named the block stays failing and ends `unresolved` |
+| `repair` | Opt-in (`repair_defects`). Fixes missing packages and other defects that are not version rot, verifying each fix in the sandbox and reverting the ones that do not remove their error; drafts suggestions for undefined names |
+| `prose` | Opt-in (`update_prose`). Sentence-level, guarded edits of text that mentions changed APIs or old versions (see Beyond version fixes) |
 | `assemble` | Final Markdown + change log. Blocks still failing become `unresolved` with their last error; never reported as passing |
 
 ### Retrieval
@@ -86,12 +97,15 @@ make "runs without error" not the only pass criterion.
     state.py         Pydantic models + GraphState
     graph.py         LangGraph wiring
     pypi.py          release metadata for version resolution
-    nodes/           ingest, extract, resolve_versions, retrieve, diff, rewrite, sandbox, query_rewrite, assemble
+    nodes/           ingest, prerepair, extract, resolve_versions, precheck, retrieve, diff, rewrite,
+                     sandbox, query_rewrite, repair, prose, diagnose, assemble
     rag/             corpus, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
     sandbox_runner/  Dockerfile + in-container runner
-    eval/            dataset/ (15 tutorials), dataset_heldout/ (6), loader, baseline, validate_dataset, metrics, run_eval
+    eval/            dataset/ (15), dataset_heldout/ (6), dataset_libs/ (12), dataset_prose/ (9),
+                     dataset_defects/ (12, generated), loader, baseline, validate_dataset, prose_check,
+                     metrics, run_eval
     api/             FastAPI service + static/index.html (single-file UI)
-  scripts/           retrieval_sanity.py, demo.py
+  scripts/           retrieval_sanity.py, demo.py, check_case.py, oracle_check.py, make_defect_set.py
   tests/
 ```
 
@@ -107,6 +121,7 @@ make "runs without error" not the only pass criterion.
 | 5 | FastAPI service + side-by-side diff UI (`trf.api.main`), tested with a fake runner and checked in headless Chrome | done |
 | 6 | Polish: demo script, limitations, ablation, results | done (single-run results, see caveats) |
 | 7 | Six libraries (NumPy, SQLAlchemy, scikit-learn, Matplotlib added), held-out and library eval sets, `protect_working_blocks`, plain-language diagnoses, `trf-serve`, spend cap | done |
+| 8 | Defect repair (static import pre-repair, verified import/package repairs, suggested definitions) and guarded prose updates, with defect and prose eval sets | done (see Results) |
 
 ### Evaluation dataset
 
@@ -140,6 +155,9 @@ All 33 pass both checks (`--dataset-dir` selects a set). Verdict labels: `rename
 | `4_full` | + cross-encoder rerank, version boost, symbol index |
 | `5_loop` | + sandbox feedback loop (Phase 4) |
 | `6_protect` | `5_loop` + never edit a block that already runs (opt-in) |
+| `7_repair` | `6_protect` + defect repair (forgotten imports and packages) |
+| `8_prose` | `6_protect` + prose updates |
+| `9_all` | `6_protect` + both |
 
 Metrics (`trf/eval/metrics.py`): block and tutorial **pass rate** (primary; assertions included),
 symbol-level **diff accuracy** against the hand labels, **minimal-edit** ratio (original lines the
@@ -196,6 +214,37 @@ The UI (`/`) takes pasted or uploaded Markdown and shows, per code block, the or
 code side by side, a status badge, the error of any unresolved block, and every change with its
 cited source links (uncited `llm_prior` edits are labelled as such). API: `POST /api/jobs`,
 `GET /api/jobs/{id}`, `GET /api/jobs/{id}/download`. Jobs are held in memory and run one at a time.
+
+## Beyond version fixes
+
+Two opt-in modes on top of the version fixing (`PipelineFlags.repair_defects`, `update_prose`; on by
+default in `scripts/demo.py` and the web service, off in the eval configs `1`-`6`).
+
+**Defect repair** targets blocks that fail for reasons other than library versions.
+
+| defect | what happens |
+|---|---|
+| a well-known name is used but never imported (`np`, `pd`, `plt`, `List`, ...) | `prerepair` finds it statically, right after ingest, and adds the import at the top of the first block that uses it. This has to come first: with `import pandas as pd` missing the analyzer sees no `pd.` calls, so no version fix would even be attempted |
+| a missing package (`ModuleNotFoundError`, "Missing optional dependency") | `repair` adds it to the install line and the environment |
+| a name nothing defines (`Alice`) | the LLM drafts a 1-4 line definition; it is only a **suggestion** in the change log unless `apply_placeholders` is on, when it is inserted with a `# added by TRF (assumed): ...` comment |
+| a project-local module, a data file, a database, the network, an intentional error | not repairable: reported with a plain-language reason |
+
+Every repair of a runtime error is verified by re-running the sandbox and **reverted** unless the
+error it targeted is gone. Each repair is a `defect_fix` change-log entry that quotes the error it
+removed (there is no release note to cite). A block that already runs is never touched.
+
+**Prose updates** were never allowed before; they are now, under strict rules:
+
+- only sentences that mention a library version or an API the code edits really changed (or a name
+  the edits removed) are even shown to the model; a tutorial with nothing to fix costs no call;
+- the model returns replacements for individual sentences, never a rewritten document;
+- every replacement is validated: it must stay close to the original (similarity and length), keep
+  links and backticks intact, introduce no number that is not a target version or part of the new
+  code, and match exactly one place in the prose;
+- edits are applied by exact string replacement, so headings, links, code fences and every
+  untouched sentence stay byte-for-byte identical;
+- each applied edit is listed in the change log and the UI with its reason and the symbol or
+  version that justified it.
 
 ## Results
 
@@ -270,6 +319,43 @@ environment and in its old environment (on an older Python where the old release
 3.10), and rewrite never edits a block that already runs. When the precheck ran, the change log also
 says which blocks now print different output from what the original printed.
 
+### Defect repair
+
+`dataset_defects/` (generate with `scripts/make_defect_set.py`, deterministic) holds 12 tutorials
+made by deleting one `import numpy as np` / `import pandas as pd` / `import matplotlib.pyplot as
+plt` line from a validated tutorial: 6 "pure" (the hand-fixed reference minus the import: one defect
+and no version rot) and 6 "mixed" (the original, with version rot too).
+
+| config | block pass | tutorials fully passing |
+|---|---|---|
+| `0_original` | 18% | 0 of 12 |
+| `6_protect` (no repair) | 28% | 0 of 12 |
+| `7_repair` | 96% | 11 of 12 |
+
+Without repair the version stage is blind (no `pd.` calls are visible), which is why 28% is barely
+above doing nothing. The one case still failing combines the defect with pydantic and pandas
+changes. These cases were built from the dev, held-out and libs tutorials, so the version-fixing part
+of them has been seen before; the new thing measured is the repair.
+
+### Prose updates
+
+`dataset_prose/` has 9 tutorials (pandas x3, pydantic x2, NumPy, Matplotlib, SQLAlchemy,
+scikit-learn) whose text states old versions and APIs, with hand-fixed prose and a
+`NAME.prose_edits.json` listing every changed sentence (`trf.eval.prose_check` proves the list
+reproduces the fixed prose). Each also has distractor sentences that must NOT change (APIs that did
+not change, version-like numbers such as "1.5 times").
+
+| | expected edits | applied | correct | edits to sentences the references leave alone |
+|---|---|---|---|---|
+| `8_prose` | 55 | 50 | 38 (69%) | 1 |
+
+Block pass rate is unchanged (98% with or without prose edits). Caveats: the references were written
+by a smaller model; "correct" means the applied edit contains the reference's new text, ignoring
+version formatting (`3.11` vs `3.11.2`); I changed the matching rule after reading the first run,
+because several edits the metric called wrong were right (a whole sentence versus the reference's
+clause) and some were better than the reference. Misses are mostly sentences whose wording changes
+more than the code change implies.
+
 ### Twenty real tutorials
 
 Web pages (pandas, NumPy, SQLAlchemy, FastAPI/pydantic) and eight chapters of the 2016 *Python Data
@@ -279,7 +365,7 @@ assertions, so "passing" only means the block ran; this is a smoke test, not a s
 
 | | python blocks | run as-is | run after the pipeline |
 |---|---|---|---|
-| 20 real tutorials | 624 | 467 (75%) | 545 (87%) |
+| 20 real tutorials | 624 | 467 (75%) | 545 (87%) with version fixing; 554 (89%) with repair and prose on |
 
 Largest gains: a NumPy page 76 to 111 of 117 blocks, a Matplotlib chapter 1 to 15 of 15 and another
 0 to 10 of 10 (the old `seaborn-whitegrid` style names), a scikit-learn chapter 20 to 25 of 32, a
@@ -295,12 +381,20 @@ project (`app.schemas`, `yourapplication`), a MySQL server, an intentional broad
 misses remain too: a FastAPI/pydantic docs page (`name = 'Jane Doe'` without an annotation) stays
 at 0 of 7 because the error names no API the corpus can match.
 
+With repair and prose on (the demo and service default), 9 more blocks run (forgotten imports and
+a missing package on four pages) and 25 prose edits were applied on five pages, all of the kind
+"`append` -> `concat`" with the sentences that describe it; nothing was edited on the pages where
+no code changed. I read the prose edits of three pages and they agreed with the code, but there are
+no hand references for real pages, so this is a read-through, not a score.
+
 ## Reproducing the evaluation
 
 ```bash
 uv run python -m trf.eval.validate_dataset                      # dev set (Docker)
 uv run python -m trf.eval.validate_dataset --dataset-dir src/trf/eval/dataset_heldout
 uv run python -m trf.eval.validate_dataset --dataset-dir src/trf/eval/dataset_libs
+uv run python -m trf.eval.prose_check --dataset-dir src/trf/eval/dataset_prose
+uv run python scripts/make_defect_set.py                          # regenerates dataset_defects/
 uv run python -m trf.eval.run_eval [--dataset-dir DIR --out runs/DIR]   # resumable; runs/<out>/results.md
 uv run python scripts/check_case.py CASE... [--dataset-dir DIR]   # one case: old env / target env / reference
 ```
@@ -383,7 +477,12 @@ a change that predates them (Matplotlib before 2.2, say) cannot be cited.
 - Method-call symbol extraction uses a light, flow-insensitive type tracker, not real type inference.
 - Blocks share one namespace, so a failing early block can make later blocks fail too; those are
   tagged "may be a downstream effect" in `last_error`, which is a hint, not a diagnosis.
-- Prose is never edited, so prose that mentions old versions or APIs stays as written.
+- Prose is edited only with `update_prose` on, one sentence at a time and only where it mentions a
+  changed API or an old version; output blocks (printed results shown in the text) are not
+  regenerated, and prose that describes behaviour rather than names a symbol is not found.
+- Defect repair covers forgotten imports and packages. It does not invent data: an undefined
+  variable stays a suggestion unless placeholders are explicitly enabled, and a tutorial that needs
+  its author's project, a data file or a server stays unresolved.
 - Install-block updates are deterministic and only handle simple `pip install` lines.
 - With a reasoning model on a small local GPU each LLM call takes tens of seconds; the diff stage is
   batched per library for this reason.
