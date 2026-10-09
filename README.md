@@ -25,8 +25,8 @@ anything runs; watch each stage; then read every block's diff with the release n
 |---|---|---|
 | ![input](docs/img/ui-input.png) | ![progress](docs/img/ui-progress.png) | ![result](docs/img/ui-result.png) |
 
-(Real run: pydantic's v1.10 *Settings* page. 5 of 7 blocks run on pydantic 2.14; the other two
-depend on an environment variable the page never sets.)
+(Real run: pydantic's v1.10 *Settings* page. 5 of 7 blocks run on pydantic 2.14; one block uses a name
+the page never defines, and the last one follows it.)
 
 ## What it does
 
