@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import inspect
 import json
+import mimetypes
 import os
+import re
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -15,12 +18,16 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field, field_validator
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, model_validator
 
 from trf.nodes.diagnose import diagnose
 from trf.state import BlockStatus, ChangeKind, GraphState
+from trf.webfetch import FetchError, fetch_markdown
 
 STATIC_DIR = Path(__file__).parent / "static"
+mimetypes.add_type("text/javascript", ".js")  # Windows registries sometimes say text/plain
+mimetypes.add_type("text/css", ".css")
 MAX_MARKDOWN_CHARS = 200_000
 MAX_JOBS = 100
 ERROR_CHARS = 500
@@ -29,17 +36,46 @@ Runner = Callable[..., GraphState]  # (state) or (state, on_stage=callable)
 JobStatus = Literal["queued", "running", "done", "failed"]
 
 
+# the opt-in stages, as the page offers them: (request key, PipelineFlags field, env override)
+MODES: dict[str, tuple[str, str]] = {
+    "protect": ("protect_working_blocks", "TRF_PROTECT_WORKING_BLOCKS"),
+    "repair": ("repair_defects", "TRF_REPAIR_DEFECTS"),
+    "prose": ("update_prose", "TRF_UPDATE_PROSE"),
+    "warnings": ("fix_warnings", "TRF_FIX_WARNINGS"),
+}
+# rough planning numbers behind the estimate shown before a run (seconds / ledger dollars per block)
+SECONDS_PER_BLOCK = 4.0
+LEDGER_USD_PER_BLOCK = 0.004
+
+
 class JobRequest(BaseModel):
-    markdown: str = Field(max_length=MAX_MARKDOWN_CHARS)
+    """A tutorial to fix: Markdown pasted in, or the address of a web page (exactly one)."""
+
+    markdown: str | None = Field(default=None, max_length=MAX_MARKDOWN_CHARS)
+    url: str | None = Field(default=None, max_length=2000)
     max_loops: int = Field(default=4, ge=0, le=8)
     target_pins: dict[str, str] = Field(default_factory=dict)
+    modes: dict[str, bool] = Field(default_factory=dict)  # keys of MODES; missing = service default
 
-    @field_validator("markdown")
-    @classmethod
-    def _not_blank(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("markdown must not be empty")
-        return v
+    @model_validator(mode="after")
+    def _one_source(self) -> JobRequest:
+        has_md = bool(self.markdown and self.markdown.strip())
+        has_url = bool(self.url and self.url.strip())
+        if has_md == has_url:
+            raise ValueError("send either markdown or a url")
+        unknown = set(self.modes) - set(MODES)
+        if unknown:
+            raise ValueError(f"unknown modes: {sorted(unknown)}")
+        return self
+
+
+class Preview(BaseModel):
+    title: str
+    markdown: str
+    python_blocks: int
+    libraries: list[str]
+    est_seconds: int
+    est_budget_usd: float
 
 
 class JobCreated(BaseModel):
@@ -102,13 +138,26 @@ class JobResult(BaseModel):
 class JobView(BaseModel):
     id: str
     status: JobStatus
+    title: str = ""
+    created: float = 0.0
     stage: str | None = None  # pipeline stage while running
     error: str | None = None
     result: JobResult | None = None
 
 
+class JobSummary(BaseModel):
+    id: str
+    status: JobStatus
+    title: str
+    created: float
+    passing: int | None = None
+    total: int | None = None
+
+
 @dataclass
 class _Job:
+    title: str = ""
+    created: float = 0.0
     status: JobStatus = "queued"
     stage: str | None = None
     error: str | None = None
@@ -128,6 +177,8 @@ class _Jobs:
                 try:
                     d = json.loads(f.read_text(encoding="utf-8"))
                     job = _Job(
+                        d.get("title", ""),
+                        d.get("created", f.stat().st_mtime),
                         d["status"],
                         d.get("stage"),
                         d.get("error"),
@@ -144,6 +195,8 @@ class _Jobs:
             return
         j = self._jobs[job_id]
         data = {
+            "title": j.title,
+            "created": j.created,
             "status": j.status,
             "stage": j.stage,
             "error": j.error,
@@ -153,10 +206,10 @@ class _Jobs:
         tmp.write_text(json.dumps(data), encoding="utf-8")
         tmp.replace(self._dir / f"{job_id}.json")
 
-    def create(self) -> str:
+    def create(self, title: str = "") -> str:
         job_id = uuid.uuid4().hex
         with self._lock:
-            self._jobs[job_id] = _Job()
+            self._jobs[job_id] = _Job(title=title, created=time.time())
             self._save(job_id)
             for old_id in list(self._jobs):
                 if len(self._jobs) <= MAX_JOBS:
@@ -192,11 +245,29 @@ class _Jobs:
                 return None
             return JobView(
                 id=job_id,
+                title=job.title,
+                created=job.created,
                 status=job.status,
                 stage=job.stage,
                 error=job.error,
                 result=job.result,
             )
+
+    def summaries(self) -> list[JobSummary]:
+        """Newest first, without the (large) results."""
+        with self._lock:
+            rows = [
+                JobSummary(
+                    id=job_id,
+                    status=j.status,
+                    title=j.title,
+                    created=j.created,
+                    passing=j.result.summary.passing if j.result else None,
+                    total=j.result.summary.total_python_blocks if j.result else None,
+                )
+                for job_id, j in self._jobs.items()
+            ]
+        return sorted(rows, key=lambda r: r.created, reverse=True)
 
 
 def build_result(original_md: str, final: GraphState) -> JobResult:
@@ -265,19 +336,78 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
     )
 
 
-def _default_runner(state: GraphState, on_stage: Callable[[str], None] | None = None) -> GraphState:
+STAGES = [
+    ("ingest", "Reading the tutorial"),
+    ("prerepair", "Adding forgotten imports"),
+    ("extract", "Finding the libraries and calls it uses"),
+    ("resolve_versions", "Working out the old and new versions"),
+    ("precheck", "Running the original to see what already works"),
+    ("retrieve", "Looking up what changed in the release notes"),
+    ("diff", "Judging which calls changed"),
+    ("rewrite", "Rewriting the code"),
+    ("sandbox", "Running every block in the sandbox"),
+    ("query_rewrite", "Reading errors and retrying"),
+    ("repair", "Fixing defects that are not version changes"),
+    ("dewarn", "Removing deprecation warnings"),
+    ("prose", "Updating the explanation text"),
+    ("assemble", "Writing the result"),
+]
+MODE_LABELS = {
+    "protect": "Leave blocks that already run alone",
+    "repair": "Fix missing imports and packages",
+    "prose": "Update the explanation text",
+    "warnings": "Fix deprecation warnings",
+}
+
+
+def describe(markdown: str, title: str) -> Preview:
+    """What a run would involve, for the page to show before anything is spent."""
+    from trf.config import LIBRARIES
+
+    fenced = re.findall(r"^```(?:python|py|pycon)\b.*?^```", markdown, re.S | re.M)
+    blocks = len(fenced)
+    code = chr(10).join(fenced)
+    libs = [
+        name
+        for name in LIBRARIES
+        if re.search(rf"^\s*(?:import|from)\s+{re.escape(name)}\b", code, re.M)
+    ]
+    return Preview(
+        title=title,
+        markdown=markdown,
+        python_blocks=blocks,
+        libraries=libs,
+        est_seconds=int(30 + blocks * SECONDS_PER_BLOCK),
+        est_budget_usd=round(blocks * LEDGER_USD_PER_BLOCK, 3),
+    )
+
+
+def spend_status() -> dict:
+    """The model budget so far, in the units the cap is set in (see docs/spend-cap.md)."""
+    ledger = Path(os.environ.get("TRF_SPEND_LEDGER", ".trf_cache/spend.json"))
+    used = 0.0
+    try:
+        used = float(json.loads(ledger.read_text(encoding="utf-8"))["usd"])
+    except (OSError, ValueError, KeyError):
+        pass
+    cap = os.environ.get("TRF_MAX_SPEND_USD")
+    return {"used": round(used, 3), "cap": float(cap) if cap else None}
+
+
+def _default_runner(
+    state: GraphState,
+    on_stage: Callable[[str], None] | None = None,
+    modes: dict[str, bool] | None = None,
+) -> GraphState:
     from trf.config import PipelineFlags
     from trf.graph import default_nodes, run_graph  # lazy: models/env only needed when a job runs
 
     flags = PipelineFlags.from_env()
     # real tutorials: leave working code alone, fix forgotten imports, keep the prose in step
-    for env, field in (
-        ("TRF_PROTECT_WORKING_BLOCKS", "protect_working_blocks"),
-        ("TRF_REPAIR_DEFECTS", "repair_defects"),
-        ("TRF_UPDATE_PROSE", "update_prose"),
-        ("TRF_FIX_WARNINGS", "fix_warnings"),
-    ):
-        if env not in os.environ:
+    for key, (field, env) in MODES.items():
+        if modes and key in modes:  # the person's choice on the page wins
+            flags = flags.model_copy(update={field: modes[key]})
+        elif env not in os.environ:
             flags = flags.model_copy(update={field: True})
     nodes = default_nodes(flags)
     if on_stage:
@@ -300,21 +430,25 @@ def create_app(
 ) -> FastAPI:
     """`jobs_dir` makes jobs survive a restart; `max_workers` defaults to $TRF_API_WORKERS or 1."""
     run = runner or _default_runner
-    wants_stage = "on_stage" in inspect.signature(run).parameters
+    params = inspect.signature(run).parameters
+    wants_stage = "on_stage" in params
+    wants_modes = "modes" in params
     workers = max_workers or int(os.environ.get("TRF_API_WORKERS", "1"))
     jobs = _Jobs(jobs_dir)
     pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="trf-job")
     page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     app = FastAPI(title="Tutorial Rot Fixer")
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-    def work(job_id: str, original_md: str, state: GraphState) -> None:
+    def work(job_id: str, original_md: str, state: GraphState, modes: dict[str, bool]) -> None:
         jobs.set_status(job_id, "running")
         try:
-            final = (
-                run(state, on_stage=lambda s: jobs.set_stage(job_id, s))
-                if wants_stage
-                else run(state)
-            )
+            extra: dict = {}
+            if wants_stage:
+                extra["on_stage"] = lambda s: jobs.set_stage(job_id, s)
+            if wants_modes:
+                extra["modes"] = modes
+            final = run(state, **extra)
             result = build_result(original_md, final)
         except Exception as e:  # a failing job must never take the server down
             jobs.set_status(job_id, "failed", error=f"{type(e).__name__}: {e}"[:ERROR_CHARS])
@@ -327,9 +461,41 @@ def create_app(
             raise HTTPException(status_code=404, detail="unknown job")
         return view
 
+    def source_of(body: JobRequest) -> tuple[str, str]:
+        """(markdown, title) from pasted text or from a fetched page."""
+        if body.url and body.url.strip():
+            try:
+                return fetch_markdown(body.url)
+            except FetchError as e:
+                raise HTTPException(status_code=422, detail=str(e)) from e
+        md = body.markdown or ""
+        heading = next((ln.lstrip("# ").strip() for ln in md.splitlines() if ln[:1] == "#"), "")
+        return md, heading or "Pasted tutorial"
+
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return page
+
+    @app.get("/api/config")
+    def config() -> dict:
+        return {
+            "stages": STAGES,
+            "modes": {k: v for k, v in MODE_LABELS.items()},
+            "max_markdown_chars": MAX_MARKDOWN_CHARS,
+        }
+
+    @app.get("/api/spend")
+    def spend() -> dict:
+        return spend_status()
+
+    @app.post("/api/preview")
+    def preview(body: JobRequest) -> Preview:
+        md, title = source_of(body)
+        return describe(md, title)
+
+    @app.get("/api/jobs")
+    def list_jobs() -> list[JobSummary]:
+        return jobs.summaries()
 
     @app.get("/health")
     def health() -> dict[str, bool]:
@@ -337,13 +503,16 @@ def create_app(
 
     @app.post("/api/jobs", status_code=202)
     def create_job(body: JobRequest) -> JobCreated:
-        job_id = jobs.create()
+        md, title = source_of(body)
+        if len(md) > MAX_MARKDOWN_CHARS:
+            raise HTTPException(status_code=422, detail="That tutorial is too long.")
+        job_id = jobs.create(title)
         state = GraphState(
-            tutorial_md=body.markdown,
+            tutorial_md=md,
             max_loops=body.max_loops,
             user_target_pins=body.target_pins,
         )
-        pool.submit(work, job_id, body.markdown, state)
+        pool.submit(work, job_id, md, state, body.modes)
         return JobCreated(id=job_id)
 
     @app.get("/api/jobs/{job_id}")

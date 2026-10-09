@@ -4,611 +4,104 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tutorial Rot Fixer</title>
-<style>
-:root {
-  color-scheme: light dark;
-  --bg: #f6f7f9;
-  --fg: #1d2330;
-  --muted: #5b6474;
-  --panel: #ffffff;
-  --border: #d6dae2;
-  --code-bg: #f3f5f8;
-  --add-bg: #d9f2e0;
-  --del-bg: #fde0df;
-  --pass: #17703a;
-  --pass-bg: #d9f2e0;
-  --fail: #b42318;
-  --fail-bg: #fde0df;
-  --pend: #5b6474;
-  --pend-bg: #e6e9ef;
-  --focus: #2563eb;
-  --link: #1d4ed8;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1115;
-    --fg: #e6e8ec;
-    --muted: #9aa3b2;
-    --panel: #171a21;
-    --border: #2c313c;
-    --code-bg: #11141a;
-    --add-bg: #14361f;
-    --del-bg: #4a1e1c;
-    --pass: #4ade80;
-    --pass-bg: #14361f;
-    --fail: #f87171;
-    --fail-bg: #4a1e1c;
-    --pend: #9aa3b2;
-    --pend-bg: #232830;
-    --focus: #60a5fa;
-    --link: #93c5fd;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0f1115;
-  --fg: #e6e8ec;
-  --muted: #9aa3b2;
-  --panel: #171a21;
-  --border: #2c313c;
-  --code-bg: #11141a;
-  --add-bg: #14361f;
-  --del-bg: #4a1e1c;
-  --pass: #4ade80;
-  --pass-bg: #14361f;
-  --fail: #f87171;
-  --fail-bg: #4a1e1c;
-  --pend: #9aa3b2;
-  --pend-bg: #232830;
-  --focus: #60a5fa;
-  --link: #93c5fd;
-}
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-header, main { max-width: 1200px; margin: 0 auto; padding: 16px; }
-header h1 { margin: 8px 0 4px; font-size: 24px; }
-.muted { color: var(--muted); margin: 0; }
-.panel, .card, .summary, details {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-}
-.panel { display: grid; gap: 10px; }
-label { font-weight: 600; }
-textarea {
-  width: 100%;
-  min-height: 200px;
-  font: 13px/1.45 ui-monospace, Consolas, "Courier New", monospace;
-  background: var(--code-bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px;
-  resize: vertical;
-}
-.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.controls > div { display: flex; flex-direction: column; gap: 4px; }
-input[type="number"] {
-  width: 90px;
-  padding: 6px;
-  font: inherit;
-  background: var(--code-bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-input[type="file"] { max-width: 100%; color: var(--fg); }
-button {
-  font: inherit;
-  font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: 1px solid var(--focus);
-  background: var(--focus);
-  color: #ffffff;
-  cursor: pointer;
-}
-button:disabled { opacity: 0.6; cursor: wait; }
-a { color: var(--link); }
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-#status { margin: 12px 0 0; min-height: 1.5em; }
-.errbox {
-  margin: 12px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--fail);
-  background: var(--fail-bg);
-  color: var(--fail);
-  border-radius: 6px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-#result { outline: none; margin-top: 16px; }
-.summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.summary .stat strong { font-size: 18px; }
-.summary .migrated { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
-.card { margin: 12px 0; }
-.card header { padding: 0; max-width: none; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.card h3 { margin: 0; font-size: 16px; flex: 1 1 auto; }
-.badge, .tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.badge.passing { background: var(--pass-bg); color: var(--pass); }
-.badge.unresolved, .badge.failing { background: var(--fail-bg); color: var(--fail); }
-.badge.pending { background: var(--pend-bg); color: var(--pend); }
-.tag { background: var(--pend-bg); color: var(--muted); }
-.tag.uncited { background: var(--fail-bg); color: var(--fail); }
-.tag.cited { background: var(--pass-bg); color: var(--pass); }
-.lasterr {
-  margin: 10px 0 0;
-  padding: 8px;
-  border: 1px solid var(--fail);
-  background: var(--fail-bg);
-  color: var(--fail);
-  border-radius: 6px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font: 13px/1.45 ui-monospace, Consolas, monospace;
-}
-.diff { display: flex; gap: 12px; margin-top: 10px; }
-.col {
-  flex: 1 1 0;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--code-bg);
-  overflow-x: auto;
-}
-.col h4 {
-  margin: 0;
-  padding: 6px 8px;
-  font-size: 12px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-}
-.ln {
-  font: 13px/1.45 ui-monospace, Consolas, "Courier New", monospace;
-  white-space: pre;
-  padding: 0 8px;
-  min-height: 1.45em;
-}
-.ln.add { background: var(--add-bg); }
-.ln.del { background: var(--del-bg); }
-.changes { margin: 12px 0 0; padding-left: 20px; }
-.changes li { margin: 6px 0; }
-.changes code { font-size: 13px; }
-.evidence { color: var(--muted); font-size: 13px; }
-details summary { cursor: pointer; font-weight: 600; }
-details ul { margin: 8px 0 0; padding-left: 20px; }
-@media (max-width: 800px) {
-  .diff { flex-direction: column; }
-  .col { flex: 0 0 auto; }
-}
-</style>
+<meta name="description" content="Update an outdated Python tutorial so its code runs on current library versions.">
+<link rel="stylesheet" href="/static/css/tokens.css">
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/layout.css">
+<link rel="stylesheet" href="/static/css/components.css">
 </head>
 <body>
-<header>
-  <h1>Tutorial Rot Fixer</h1>
-  <p class="muted">Paste a Python tutorial in Markdown. The pipeline updates outdated code and runs each Python block.</p>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">&#10003;</span>Tutorial Rot Fixer</div>
+  <div class="topbar-spacer"></div>
+  <div class="meter" id="meter" hidden>
+    <span id="meter-text"></span>
+    <div class="meter-bar"><div class="meter-fill" id="meter-fill"></div></div>
+  </div>
+  <button class="btn small" id="history-btn" type="button" aria-expanded="false" aria-controls="drawer">History</button>
+  <button class="btn small" id="theme-btn" type="button" aria-label="Switch between light and dark">Theme</button>
 </header>
+
 <main>
-  <form id="fix-form" class="panel">
-    <label for="markdown">Tutorial Markdown</label>
-    <textarea id="markdown" rows="12" spellcheck="false" required></textarea>
-    <div class="controls">
-      <div>
-        <label for="file">Load .md file</label>
-        <input type="file" id="file" accept=".md,text/markdown,text/plain">
-      </div>
-      <div>
-        <label for="max-loops">Max loops (0 to 8)</label>
-        <input type="number" id="max-loops" min="0" max="8" step="1" value="4">
-      </div>
-      <button type="submit" id="submit">Fix tutorial</button>
+  <section class="hero">
+    <h1>Make an old tutorial run again.</h1>
+    <p>Give it a Python tutorial and it returns a version whose code runs on current libraries.
+      Every block is executed in a sandbox, and every change links to the release note behind it.</p>
+  </section>
+
+  <form id="fix-form" class="card card-pad" novalidate>
+    <div class="tabs" role="tablist" aria-label="Where the tutorial comes from">
+      <button class="tab" role="tab" type="button" id="tab-url" aria-selected="true" aria-controls="pane-url">Web page</button>
+      <button class="tab" role="tab" type="button" id="tab-paste" aria-selected="false" aria-controls="pane-paste">Paste Markdown</button>
+      <button class="tab" role="tab" type="button" id="tab-file" aria-selected="false" aria-controls="pane-file">Upload file</button>
     </div>
+
+    <div id="pane-url" role="tabpanel" aria-labelledby="tab-url">
+      <label class="field" for="url">Address of the tutorial</label>
+      <div class="row">
+        <input class="input" id="url" type="url" inputmode="url" placeholder="https://docs.scipy.org/doc/scipy-1.10.0/tutorial/optimize.html" autocomplete="off">
+        <button class="btn" id="check-btn" type="button">Check page</button>
+      </div>
+      <p class="hint">Blog posts and documentation pages both work. Old versioned docs addresses (for example
+        <code>/pandas-docs/version/1.5.3/</code>) tell the tool which library version the page was written for.</p>
+    </div>
+
+    <div id="pane-paste" role="tabpanel" aria-labelledby="tab-paste" hidden>
+      <label class="field" for="markdown">Tutorial Markdown</label>
+      <textarea class="input" id="markdown" spellcheck="false" placeholder="# My tutorial&#10;&#10;```python&#10;import pandas as pd&#10;```"></textarea>
+    </div>
+
+    <div id="pane-file" role="tabpanel" aria-labelledby="tab-file" hidden>
+      <label class="dropzone" id="dropzone" for="file">
+        <strong>Choose a .md file</strong> or drop it here
+        <input class="sr-only" type="file" id="file" accept=".md,.markdown,text/markdown,text/plain">
+      </label>
+      <p class="hint" id="file-name"></p>
+    </div>
+
+    <div class="preview" id="preview" hidden>
+      <strong id="pv-title"></strong>
+      <div class="muted" id="pv-line"></div>
+      <div class="chips" id="pv-libs"></div>
+    </div>
+
+    <details class="settings">
+      <summary>Settings</summary>
+      <div class="settings-body" id="settings-body">
+        <div class="toggles" id="toggles"></div>
+        <div>
+          <label class="field" for="max-loops">Retry rounds for blocks that still fail</label>
+          <input class="input" id="max-loops" type="number" min="0" max="8" step="1" value="4" style="max-width:120px">
+          <p class="hint">Each round reads the error, looks up the call that broke, and tries again. 0 turns it off.</p>
+        </div>
+      </div>
+    </details>
+
+    <div class="runbar">
+      <div class="estimate" id="estimate">Add a tutorial to see a time and cost estimate.</div>
+      <button class="btn primary big" id="submit" type="submit">Fix tutorial</button>
+    </div>
+    <div class="errbox" id="error" role="alert" hidden></div>
   </form>
-  <p id="status" role="status" aria-live="polite"></p>
-  <div id="error" class="errbox" role="alert" hidden></div>
+
+  <section class="card progress" id="progress" aria-live="polite" hidden>
+    <div class="progress-head">
+      <h2 id="progress-title">Working</h2>
+      <span class="muted" id="elapsed"></span>
+    </div>
+    <div class="bar"><span id="bar-fill" style="width:0%"></span></div>
+    <ol class="steps" id="steps"></ol>
+  </section>
+
   <section id="result" tabindex="-1" hidden></section>
 </main>
-<script>
-(function () {
-  "use strict";
-  var POLL_MS = 1500;
-  var MAX_CELLS = 1000000;
 
-  var form = document.getElementById("fix-form");
-  var mdInput = document.getElementById("markdown");
-  var fileInput = document.getElementById("file");
-  var loopsInput = document.getElementById("max-loops");
-  var submitBtn = document.getElementById("submit");
-  var statusEl = document.getElementById("status");
-  var errorEl = document.getElementById("error");
-  var resultEl = document.getElementById("result");
-  var pollTimer = null;
+<aside class="drawer" id="drawer" aria-label="Past runs" aria-hidden="true">
+  <div class="drawer-head"><h2>Past runs</h2><button class="btn small ghost" id="drawer-close" type="button">Close</button></div>
+  <div class="drawer-body" id="history-list"></div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
 
-  var BADGE = {
-    passing: ["passing", "passing"],
-    unresolved: ["unresolved", "unresolved"],
-    failing: ["failing", "failing"],
-    pending: ["pending", "not executed"]
-  };
-
-  function el(tag, cls, text) {
-    var node = document.createElement(tag);
-    if (cls) node.className = cls;
-    if (text !== undefined && text !== null) node.textContent = String(text);
-    return node;
-  }
-
-  function clear(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
-  }
-
-  function setStatus(text) {
-    statusEl.textContent = text ? "Status: " + text : "";
-  }
-
-  function showError(text) {
-    errorEl.textContent = text || "";
-    errorEl.hidden = !text;
-  }
-
-  function stopPolling() {
-    if (pollTimer !== null) {
-      clearTimeout(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  function detailText(body) {
-    var d = body && body.detail;
-    if (typeof d === "string") return d;
-    if (Array.isArray(d)) {
-      return d.map(function (x) {
-        var where = Array.isArray(x.loc) ? x.loc.slice(1).join(".") + ": " : "";
-        return where + x.msg;
-      }).join("\n");
-    }
-    return "";
-  }
-
-  function fail(message) {
-    stopPolling();
-    submitBtn.disabled = false;
-    setStatus("failed");
-    showError(message || "Something went wrong.");
-  }
-
-  function finish(jobId, result) {
-    stopPolling();
-    submitBtn.disabled = false;
-    setStatus("done");
-    render(jobId, result);
-  }
-
-  fileInput.addEventListener("change", function () {
-    var file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    file.text().then(function (text) {
-      mdInput.value = text;
-    }).catch(function () {
-      showError("Could not read that file.");
-    });
-  });
-
-  form.addEventListener("submit", function (ev) {
-    ev.preventDefault();
-    stopPolling();
-    showError("");
-    clear(resultEl);
-    resultEl.hidden = true;
-    var markdown = mdInput.value;
-    var loops = parseInt(loopsInput.value, 10);
-    if (!markdown.trim()) {
-      showError("Paste a tutorial or load a .md file first.");
-      return;
-    }
-    if (isNaN(loops) || loops < 0 || loops > 8) {
-      showError("Max loops must be a whole number from 0 to 8.");
-      return;
-    }
-    submitBtn.disabled = true;
-    setStatus("submitting");
-    fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ markdown: markdown, max_loops: loops })
-    }).then(function (resp) {
-      return resp.json().catch(function () { return {}; }).then(function (body) {
-        if (!resp.ok) throw new Error(detailText(body) || "Request failed (HTTP " + resp.status + ").");
-        return body;
-      });
-    }).then(function (job) {
-      setStatus("queued");
-      poll(job.id);
-    }).catch(function (err) {
-      fail(err.message);
-    });
-  });
-
-  function poll(jobId) {
-    var url = "/api/jobs/" + encodeURIComponent(jobId);
-    function tick() {
-      fetch(url, { cache: "no-store" }).then(function (resp) {
-        if (!resp.ok) throw new Error("Could not read the job (HTTP " + resp.status + ").");
-        return resp.json();
-      }).then(function (job) {
-        setStatus(job.status + (job.stage ? ": " + job.stage : ""));
-        if (job.status === "done" && job.result) {
-          finish(jobId, job.result);
-        } else if (job.status === "failed") {
-          fail(job.error || "The job failed.");
-        } else {
-          pollTimer = setTimeout(tick, POLL_MS);
-        }
-      }).catch(function (err) {
-        fail(err.message);
-      });
-    }
-    tick();
-  }
-
-  function splitLines(text) {
-    if (!text) return [];
-    var parts = text.split("\n");
-    if (parts.length && parts[parts.length - 1] === "") parts.pop();
-    return parts;
-  }
-
-  // Line-level LCS diff. Returns ops: ["eq" | "del" | "add", line].
-  function lineDiff(a, b) {
-    var n = a.length, m = b.length, i, j, ops = [];
-    if (n * m > MAX_CELLS) {
-      a.forEach(function (x) { ops.push(["del", x]); });
-      b.forEach(function (x) { ops.push(["add", x]); });
-      return ops;
-    }
-    var dp = [];
-    for (i = 0; i <= n; i++) dp.push(new Uint32Array(m + 1));
-    for (i = n - 1; i >= 0; i--) {
-      for (j = m - 1; j >= 0; j--) {
-        dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-      }
-    }
-    i = 0;
-    j = 0;
-    while (i < n && j < m) {
-      if (a[i] === b[j]) {
-        ops.push(["eq", a[i]]);
-        i++;
-        j++;
-      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-        ops.push(["del", a[i]]);
-        i++;
-      } else {
-        ops.push(["add", b[j]]);
-        j++;
-      }
-    }
-    while (i < n) ops.push(["del", a[i++]]);
-    while (j < m) ops.push(["add", b[j++]]);
-    return ops;
-  }
-
-  // Pairs runs of deletions and insertions side by side so the two columns stay aligned.
-  function toRows(ops) {
-    var rows = [], dels = [], adds = [];
-    function flush() {
-      var k = Math.max(dels.length, adds.length);
-      for (var q = 0; q < k; q++) {
-        rows.push({
-          left: q < dels.length ? { t: dels[q], c: "del" } : null,
-          right: q < adds.length ? { t: adds[q], c: "add" } : null
-        });
-      }
-      dels = [];
-      adds = [];
-    }
-    ops.forEach(function (op) {
-      if (op[0] === "eq") {
-        flush();
-        rows.push({ left: { t: op[1], c: "" }, right: { t: op[1], c: "" } });
-      } else if (op[0] === "del") {
-        dels.push(op[1]);
-      } else {
-        adds.push(op[1]);
-      }
-    });
-    flush();
-    return rows;
-  }
-
-  function column(title, cells) {
-    var col = el("div", "col");
-    col.appendChild(el("h4", null, title));
-    if (!cells.length) {
-      col.appendChild(el("div", "ln", "(empty)"));
-      return col;
-    }
-    cells.forEach(function (cell) {
-      var text = cell ? cell.t : " ";
-      var cls = cell && cell.c ? "ln " + cell.c : "ln";
-      col.appendChild(el("div", cls, text === "" ? " " : text));
-    });
-    return col;
-  }
-
-  function diffView(original, updated) {
-    var rows = toRows(lineDiff(splitLines(original), splitLines(updated)));
-    var wrap = el("div", "diff");
-    wrap.appendChild(column("Original", rows.map(function (r) { return r.left; })));
-    wrap.appendChild(column("Updated", rows.map(function (r) { return r.right; })));
-    return wrap;
-  }
-
-  function changeItem(c) {
-    var li = el("li");
-    if (c.kind === "defect_fix") {
-      li.appendChild(el("span", "tag cited", "defect fix"));
-    } else if (c.cited) {
-      li.appendChild(el("span", "tag cited", "cited: " + c.kind));
-    } else {
-      li.appendChild(el("span", "tag uncited", "uncited: model knowledge, no retrieval"));
-    }
-    li.appendChild(document.createTextNode(" "));
-    if (c.symbol) {
-      li.appendChild(el("code", null, c.symbol));
-      li.appendChild(document.createTextNode(": "));
-    }
-    li.appendChild(document.createTextNode(c.description));
-    if (c.error) {
-      li.appendChild(el("div", "evidence", "removes the error: " + c.error));
-    }
-    if (c.evidence_chunk_ids && c.evidence_chunk_ids.length) {
-      li.appendChild(el("div", "evidence", "evidence: " + c.evidence_chunk_ids.join(", ")));
-    }
-    (c.source_urls || []).forEach(function (url) {
-      if (typeof url !== "string" || url.indexOf("https://") !== 0) return;
-      var a = el("a", null, url);
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      li.appendChild(document.createTextNode(" "));
-      li.appendChild(a);
-    });
-    return li;
-  }
-
-  function blockCard(block, changes) {
-    var card = el("article", "card");
-    var head = el("header");
-    head.appendChild(el("h3", null, "Block " + block.id + " (" + (block.lang || "-") + ")"));
-    var badge = BADGE[block.status] || BADGE.pending;
-    head.appendChild(el("span", "badge " + badge[0], badge[1]));
-    if (block.changed) head.appendChild(el("span", "tag", "edited"));
-    if (block.output_matches === true) {
-      head.appendChild(el("span", "tag", "same output as the original"));
-    } else if (block.output_matches === false) {
-      head.appendChild(el("span", "badge " + BADGE.failing[0], "output differs from the original"));
-    }
-    card.appendChild(head);
-    if (block.diagnosis) {
-      card.appendChild(el("p", "muted", "Likely cause: " + block.diagnosis + "."));
-    }
-
-    if ((block.status === "failing" || block.status === "unresolved") && block.last_error) {
-      card.appendChild(el("pre", "lasterr", block.last_error));
-    }
-
-    card.appendChild(diffView(block.original_source, block.source));
-
-    card.appendChild(el("h4", null, "Changes"));
-    if (!changes.length) {
-      card.appendChild(el("p", "muted", "No edits for this block."));
-    } else {
-      var list = el("ul", "changes");
-      changes.forEach(function (c) { list.appendChild(changeItem(c)); });
-      card.appendChild(list);
-    }
-    return card;
-  }
-
-  function render(jobId, result) {
-    clear(resultEl);
-    var s = result.summary;
-
-    var bar = el("div", "summary");
-    bar.appendChild(stat("Python blocks passing", s.passing + " / " + s.total_python_blocks));
-    bar.appendChild(stat("Unresolved", s.unresolved));
-    if (s.output_compared) {
-      bar.appendChild(stat("Same output as the original", s.output_same + " / " + s.output_compared));
-    }
-    bar.appendChild(stat("Loops used", s.loops_used));
-    var migrated = result.migrated || {};
-    Object.keys(migrated).forEach(function (lib) {
-      var m = migrated[lib];
-      bar.appendChild(el("span", "migrated", lib + ": " + m.from + " to " + m.to));
-    });
-    var link = el("a", null, "Download updated .md");
-    link.href = "/api/jobs/" + encodeURIComponent(jobId) + "/download";
-    link.setAttribute("download", "tutorial-fixed.md");
-    bar.appendChild(link);
-    resultEl.appendChild(bar);
-
-    var byBlock = {};
-    (result.changes || []).forEach(function (c) {
-      (byBlock[c.block_id] = byBlock[c.block_id] || []).push(c);
-    });
-    resultEl.appendChild(el("h2", null, "Code blocks"));
-    if (!result.blocks.length) {
-      resultEl.appendChild(el("p", "muted", "No code blocks found in this tutorial."));
-    }
-    result.blocks.forEach(function (b) {
-      resultEl.appendChild(blockCard(b, byBlock[b.id] || []));
-    });
-
-    if (result.prose_edits && result.prose_edits.length) {
-      resultEl.appendChild(el("h2", null, "Prose changes"));
-      var pl = el("ul", "changes");
-      result.prose_edits.forEach(function (e) {
-        var li = el("li");
-        li.appendChild(el("del", null, e.old));
-        li.appendChild(document.createTextNode(" "));
-        li.appendChild(el("ins", null, e.new));
-        li.appendChild(el("div", "evidence", e.reason + " (linked to " + e.linked + ")"));
-        pl.appendChild(li);
-      });
-      resultEl.appendChild(pl);
-    }
-    var sug = result.suggestions || {};
-    if (Object.keys(sug).length) {
-      resultEl.appendChild(el("h2", null, "Suggested fixes (not applied)"));
-      var sl = el("ul", "changes");
-      Object.keys(sug).forEach(function (id) {
-        var li = el("li");
-        li.appendChild(document.createTextNode("Block " + id + ": "));
-        li.appendChild(el("code", null, sug[id]));
-        sl.appendChild(li);
-      });
-      resultEl.appendChild(sl);
-    }
-
-    if (result.warnings && result.warnings.length) {
-      var det = el("details");
-      det.appendChild(el("summary", null, "Warnings (" + result.warnings.length + ")"));
-      var ul = el("ul");
-      result.warnings.forEach(function (w) { ul.appendChild(el("li", null, w)); });
-      det.appendChild(ul);
-      resultEl.appendChild(det);
-    }
-
-    resultEl.hidden = false;
-    resultEl.focus();
-  }
-
-  function stat(label, value) {
-    var box = el("span", "stat");
-    box.appendChild(document.createTextNode(label + ": "));
-    box.appendChild(el("strong", null, value));
-    return box;
-  }
-})();
-</script>
+<script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

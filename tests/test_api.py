@@ -8,6 +8,16 @@ from fastapi.testclient import TestClient
 from trf.api.main import STATIC_DIR, build_result, create_app
 from trf.state import ChangeLogEntry, CodeBlock, GraphState, RunResult
 
+
+def static_text() -> str:
+    """Every file of the front end, as one string."""
+    return chr(10).join(
+        f.read_text(encoding="utf-8")
+        for f in sorted(STATIC_DIR.rglob("*"))
+        if f.suffix in (".html", ".css", ".js")
+    )
+
+
 MD = "# Pandas\n\n```python\nx = 1\n```\n\n```python\ny()\n```\n"
 
 
@@ -64,7 +74,7 @@ def test_index_serves_page_without_innerhtml() -> None:
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     assert "Tutorial Rot Fixer" in resp.text
-    assert "innerHTML" not in resp.text
+    assert "innerHTML" not in static_text()
 
 
 def test_job_completes_with_result() -> None:
@@ -166,7 +176,7 @@ def test_build_result_marks_llm_prior_as_uncited() -> None:
 
 def test_stacked_layout_keeps_code_panes_visible():
     """Regression: with `flex: 1 1 0` in a column, the panes collapsed to zero height under 800px."""
-    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    page = static_text()
     assert "@media (max-width: 800px)" in page
     assert ".col { flex: 0 0 auto; }" in page
 
@@ -265,6 +275,89 @@ def test_result_carries_defect_fixes_prose_edits_and_suggestions():
 
 
 def test_page_renders_the_new_sections_without_innerHTML():
-    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    page = static_text()
     assert "Prose changes" in page and "Suggested fixes (not applied)" in page
     assert "defect fix" in page and "innerHTML" not in page
+
+
+def test_job_from_a_url_uses_the_fetched_page(monkeypatch):
+    seen = {}
+
+    def fake_fetch(url, pin=True):
+        seen["url"] = url
+        return MD, "Fetched title"
+
+    monkeypatch.setattr("trf.api.main.fetch_markdown", fake_fetch)
+    with TestClient(create_app(runner=fake_runner)) as client:
+        job = client.post("/api/jobs", json={"url": "https://example.com/t"}).json()
+        body = wait_for(client, job["id"], ("done", "failed"))
+    assert seen["url"] == "https://example.com/t"
+    assert body["status"] == "done" and body["title"] == "Fetched title"
+
+
+def test_unusable_url_is_a_422_with_the_reason(monkeypatch):
+    from trf.webfetch import FetchError
+
+    def refuse(url, pin=True):
+        raise FetchError("That address is on a private network, so it is not fetched.")
+
+    monkeypatch.setattr("trf.api.main.fetch_markdown", refuse)
+    with TestClient(create_app(runner=fake_runner)) as client:
+        resp = client.post("/api/jobs", json={"url": "http://10.0.0.1/"})
+    assert resp.status_code == 422 and "private network" in resp.json()["detail"]
+
+
+def test_request_needs_exactly_one_source_and_known_modes():
+    with TestClient(create_app(runner=fake_runner)) as client:
+        assert client.post("/api/jobs", json={}).status_code == 422
+        both = {"markdown": MD, "url": "https://example.com"}
+        assert client.post("/api/jobs", json=both).status_code == 422
+        assert (
+            client.post("/api/jobs", json={"markdown": MD, "modes": {"nope": True}}).status_code
+            == 422
+        )
+
+
+def test_preview_counts_blocks_and_libraries_without_running_anything():
+    md = "# T\n\n```python\nimport pandas as pd\nimport numpy as np\n```\n\n```python\nx = 1\n```\n"
+    with TestClient(create_app(runner=fake_runner)) as client:
+        p = client.post("/api/preview", json={"markdown": md}).json()
+    assert p["title"] == "T" and p["python_blocks"] == 2
+    assert p["libraries"] == ["pandas", "numpy"] or set(p["libraries"]) == {"pandas", "numpy"}
+    assert p["est_seconds"] > 0 and p["est_budget_usd"] > 0
+
+
+def test_modes_reach_a_runner_that_accepts_them():
+    got = {}
+
+    def runner(state, modes=None):
+        got["modes"] = modes
+        return fake_runner(state)
+
+    with TestClient(create_app(runner=runner)) as client:
+        job = client.post("/api/jobs", json={"markdown": MD, "modes": {"prose": False}}).json()
+        wait_for(client, job["id"], ("done", "failed"))
+    assert got["modes"] == {"prose": False}
+
+
+def test_history_lists_newest_first_without_results():
+    with TestClient(create_app(runner=fake_runner)) as client:
+        a = client.post("/api/jobs", json={"markdown": "# First\n\n```python\nx=1\n```\n"}).json()
+        wait_for(client, a["id"], ("done",))
+        time.sleep(0.02)
+        b = client.post("/api/jobs", json={"markdown": "# Second\n\n```python\nx=1\n```\n"}).json()
+        wait_for(client, b["id"], ("done",))
+        rows = client.get("/api/jobs").json()
+    assert [r["title"] for r in rows[:2]] == ["Second", "First"]
+    assert "result" not in rows[0] and rows[0]["total"] == 2
+
+
+def test_config_lists_stages_and_modes_and_static_files_are_served():
+    with TestClient(create_app(runner=fake_runner)) as client:
+        cfg = client.get("/api/config").json()
+        js = client.get("/static/js/app.js")
+        css = client.get("/static/css/components.css")
+    assert [s[0] for s in cfg["stages"]][:2] == ["ingest", "prerepair"]
+    assert set(cfg["modes"]) == {"protect", "repair", "prose", "warnings"}
+    assert js.status_code == 200 and "javascript" in js.headers["content-type"]
+    assert css.status_code == 200 and "css" in css.headers["content-type"]

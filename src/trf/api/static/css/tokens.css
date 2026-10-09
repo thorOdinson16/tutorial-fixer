@@ -1,0 +1,83 @@
+/* Design tokens. Light by default, dark when the system asks or the page toggle says so. */
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6fa;
+  --surface: #ffffff;
+  --surface-2: #f0f2f7;
+  --fg: #1a2033;
+  --muted: #5d667a;
+  --border: #dde1ea;
+  --accent: #4f46e5;
+  --accent-fg: #ffffff;
+  --accent-soft: #e8e7fd;
+  --pass: #137a3f;
+  --pass-bg: #dcf4e4;
+  --fail: #b42318;
+  --fail-bg: #fde4e2;
+  --warn: #9a6700;
+  --warn-bg: #fdf1cf;
+  --idle: #5d667a;
+  --idle-bg: #e7eaf1;
+  --add-bg: #d7f2df;
+  --add-strong: #9be0b1;
+  --del-bg: #fde0de;
+  --del-strong: #f5aaa4;
+  --code-bg: #f4f6fa;
+  --shadow: 0 1px 2px rgba(20, 28, 50, 0.06), 0 4px 16px rgba(20, 28, 50, 0.06);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, Menlo, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1118;
+    --surface: #161a24;
+    --surface-2: #1d2230;
+    --fg: #e7e9ef;
+    --muted: #9aa3b5;
+    --border: #2a3040;
+    --accent: #8b87ff;
+    --accent-fg: #0e1118;
+    --accent-soft: #25264a;
+    --pass: #4ade80;
+    --pass-bg: #123222;
+    --fail: #f87171;
+    --fail-bg: #411c1b;
+    --warn: #fbbf24;
+    --warn-bg: #3a2c0b;
+    --idle: #9aa3b5;
+    --idle-bg: #232938;
+    --add-bg: #143823;
+    --add-strong: #1f6b3c;
+    --del-bg: #44201f;
+    --del-strong: #8a3431;
+    --code-bg: #10131b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1118;
+  --surface: #161a24;
+  --surface-2: #1d2230;
+  --fg: #e7e9ef;
+  --muted: #9aa3b5;
+  --border: #2a3040;
+  --accent: #8b87ff;
+  --accent-fg: #0e1118;
+  --accent-soft: #25264a;
+  --pass: #4ade80;
+  --pass-bg: #123222;
+  --fail: #f87171;
+  --fail-bg: #411c1b;
+  --warn: #fbbf24;
+  --warn-bg: #3a2c0b;
+  --idle: #9aa3b5;
+  --idle-bg: #232938;
+  --add-bg: #143823;
+  --add-strong: #1f6b3c;
+  --del-bg: #44201f;
+  --del-strong: #8a3431;
+  --code-bg: #10131b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
+}
