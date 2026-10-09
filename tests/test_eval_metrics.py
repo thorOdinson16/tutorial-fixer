@@ -100,3 +100,22 @@ def test_prose_score_counts_correct_and_unneeded_edits():
         E(old="`groupby` splits data.", new="`groupby` splits the data."),
     ]
     assert prose_score(expected, got) == {"expected": 2, "applied": 3, "correct": 1, "unneeded": 1}
+
+
+def test_prose_score_matches_whole_sentences_against_listed_clauses():
+    from types import SimpleNamespace as E
+
+    from trf.eval.metrics import prose_score
+
+    expected = [
+        {
+            "old": "The tests were run on Matplotlib 3.4,",
+            "new": "The tests were run on Matplotlib 3.11,",
+        }
+    ]
+    got = [
+        E(old="The tests were run on Matplotlib 3.4, and colours differ.",
+          new="The tests were run on Matplotlib 3.11.2, and colours differ."),
+        E(old="Plotting is fun.", new="Plotting is great."),
+    ]  # fmt: skip
+    assert prose_score(expected, got) == {"expected": 1, "applied": 2, "correct": 1, "unneeded": 1}

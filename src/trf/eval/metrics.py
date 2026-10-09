@@ -64,8 +64,10 @@ def diff_accuracy(s: GraphState, expected: dict[str, str]) -> dict[str, int]:
 def prose_score(expected: list[dict], got: list) -> dict[str, int]:
     """Compare applied prose edits with the hand-listed ones.
 
-    An applied edit is correct when its `old` sentence is one of the expected ones and its new text
-    is (nearly) the expected text; an edit to any other sentence is unneeded.
+    An applied edit COVERS an expected edit when the two texts overlap (the system edits whole
+    sentences, the reference sometimes lists only a clause). It is correct when it contains the
+    expected new text or is nearly identical to it, ignoring version formatting. An edit that
+    overlaps no expected edit is unneeded.
     """
     want = {e["old"]: e["new"] for e in expected}
 
@@ -75,15 +77,15 @@ def prose_score(expected: list[dict], got: list) -> dict[str, int]:
     correct = unneeded = 0
     done: set[str] = set()
     for g in got:
-        exp = want.get(g.old)
-        if exp is None:
+        key = next((k for k in want if k in g.old or g.old in k), None)
+        if key is None:
             unneeded += 1
-        elif (
-            g.old not in done
-            and difflib.SequenceMatcher(None, norm(g.new), norm(exp)).ratio() >= 0.9
-        ):
+            continue
+        exp, new = norm(want[key]), norm(g.new)
+        ok = exp in new or difflib.SequenceMatcher(None, new, exp).ratio() >= 0.9
+        if ok and key not in done:
             correct += 1
-            done.add(g.old)
+            done.add(key)
     return {"expected": len(want), "applied": len(got), "correct": correct, "unneeded": unneeded}
 
 
