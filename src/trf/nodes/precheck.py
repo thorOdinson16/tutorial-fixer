@@ -31,6 +31,7 @@ DEFAULT_OLD_PYTHON = "3.10"  # old pandas/pydantic wheels exist for 3.10, not 3.
 OLD_PYTHON_FOR: dict[str, list[tuple[str, str]]] = {
     "pandas": [("1.1.4", "3.8"), ("1.3.4", "3.9")],
     "numpy": [("1.19.0", "3.8"), ("1.21.3", "3.9")],
+    "scipy": [("1.5.0", "3.8"), ("1.7.2", "3.9")],
     "sklearn": [("0.22.1", "3.7"), ("0.24.0", "3.8"), ("1.0.1", "3.9")],
     "matplotlib": [("3.2.0", "3.7"), ("3.3.0", "3.8"), ("3.5.0", "3.9")],  # the runner needs >= 3.7
 }

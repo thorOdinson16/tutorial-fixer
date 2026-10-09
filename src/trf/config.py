@@ -293,6 +293,19 @@ register_library(
     )
 )
 
+_SP_DOC = f"{_GH}/scipy/scipy/main/doc/source/release"
+register_library(
+    LibraryConfig(
+        name="scipy",
+        pypi_name="scipy",
+        target_major=1,
+        bundled_imports=["numpy"],
+        changelog_sources=[
+            f"{_SP_DOC}/1.{m}.0-notes.rst" for m in range(2, 18)
+        ],  # 1.2.0 ... 1.17.0 (misc.* moves, interp2d, simps, signal windows, ...)
+    )
+)
+
 _MPL_DOC = f"{_GH}/matplotlib/matplotlib/main/doc/api/prev_api_changes"
 _MPL_MISSING = {"3.2.0/behaviour", "3.10.0/behaviour", "3.11.0/behaviour"}
 register_library(

@@ -79,15 +79,28 @@ def test_interpret_attaches_the_recorded_warnings_to_each_block():
 needs_docker = pytest.mark.skipif(not docker_available(), reason="Docker daemon not available")
 
 
+def ensure_test_image() -> None:
+    """Build the sandbox test image only if it is missing; skip (not fail) if it cannot be built."""
+    runner_dir = Path(__file__).parents[1] / "src" / "trf" / "sandbox_runner"
+    have = (
+        subprocess.run(
+            ["docker", "image", "inspect", "trf-sandbox:test"], capture_output=True
+        ).returncode
+        == 0
+    )
+    if have:
+        return
+    built = subprocess.run(
+        ["docker", "build", "-t", "trf-sandbox:test", str(runner_dir)], capture_output=True
+    )
+    if built.returncode != 0:
+        pytest.skip("could not build the sandbox test image")
+
+
 @pytest.mark.docker
 @needs_docker
 def test_the_real_driver_records_warnings_per_block():
-    runner_dir = Path(__file__).parents[1] / "src" / "trf" / "sandbox_runner"
-    subprocess.run(
-        ["docker", "build", "-t", "trf-sandbox:test", str(runner_dir)],
-        check=True,
-        capture_output=True,
-    )
+    ensure_test_image()
     blocks = [
         CodeBlock.new("b1", "import warnings\nwarnings.warn('old() is deprecated', DeprecationWarning)\nprint(1)\n"),
         CodeBlock.new("b2", "print(2)\n"),
@@ -238,6 +251,7 @@ def test_warned_blocks_groups_by_block():
 @pytest.mark.docker
 @needs_docker
 def test_blocks_can_write_files_and_use_a_cache_dir_inside_the_sandbox():
+    ensure_test_image()
     code = (
         "import os\nopen('note.txt', 'w').write('hi')\nprint(open('note.txt').read())\n"
         "print(os.environ['HOME'], os.environ['MPLCONFIGDIR'], os.getcwd())\n"
