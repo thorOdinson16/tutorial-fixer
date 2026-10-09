@@ -1,4 +1,4 @@
-"""Check a prose-update case: `NAME.prose_edits.json` must turn the original prose into the fixed prose.
+"""Check a prose-update case: `NAME.prose_edits.json` must turn the original prose into the fixed one.
 
     uv run python -m trf.eval.prose_check --dataset-dir src/trf/eval/dataset_prose [--cases a b]
 
