@@ -236,3 +236,35 @@ def test_worker_count_comes_from_the_environment(monkeypatch):
     monkeypatch.setenv("TRF_API_WORKERS", "3")
     app = create_app(runner=fake_runner)
     assert app is not None  # constructed without error with 3 workers
+
+
+def test_result_carries_defect_fixes_prose_edits_and_suggestions():
+    from trf.state import ProseEdit
+
+    final = GraphState(
+        blocks=[CodeBlock.new("b2", "x").model_copy(update={"status": "passing"})],
+        change_log=[
+            ChangeLogEntry(
+                block_id="b2", kind="defect_fix", description="Added `import numpy as np`.",
+                error="NameError: name 'np' is not defined",
+            )
+        ],
+        prose_edits=[
+            ProseEdit(segment=0, old="Uses pandas 1.3.", new="Uses pandas 2.3.", reason="target",
+                      linked="version")
+        ],
+        suggestions={"b5": "Alice = 'a'  # assumed: a name"},
+    )  # fmt: skip
+    r = build_result("md", final)
+    (c,) = r.changes
+    assert c.kind == "defect_fix" and c.cited is False and "NameError" in c.error
+    assert [(e.old, e.new, e.linked) for e in r.prose_edits] == [
+        ("Uses pandas 1.3.", "Uses pandas 2.3.", "version")
+    ]
+    assert r.suggestions == {"b5": "Alice = 'a'  # assumed: a name"}
+
+
+def test_page_renders_the_new_sections_without_innerHTML():
+    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    assert "Prose changes" in page and "Suggested fixes (not applied)" in page
+    assert "defect fix" in page and "innerHTML" not in page

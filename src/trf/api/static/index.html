@@ -464,7 +464,9 @@ details ul { margin: 8px 0 0; padding-left: 20px; }
 
   function changeItem(c) {
     var li = el("li");
-    if (c.cited) {
+    if (c.kind === "defect_fix") {
+      li.appendChild(el("span", "tag cited", "defect fix"));
+    } else if (c.cited) {
       li.appendChild(el("span", "tag cited", "cited: " + c.kind));
     } else {
       li.appendChild(el("span", "tag uncited", "uncited: model knowledge, no retrieval"));
@@ -475,6 +477,9 @@ details ul { margin: 8px 0 0; padding-left: 20px; }
       li.appendChild(document.createTextNode(": "));
     }
     li.appendChild(document.createTextNode(c.description));
+    if (c.error) {
+      li.appendChild(el("div", "evidence", "removes the error: " + c.error));
+    }
     if (c.evidence_chunk_ids && c.evidence_chunk_ids.length) {
       li.appendChild(el("div", "evidence", "evidence: " + c.evidence_chunk_ids.join(", ")));
     }
@@ -557,6 +562,32 @@ details ul { margin: 8px 0 0; padding-left: 20px; }
     result.blocks.forEach(function (b) {
       resultEl.appendChild(blockCard(b, byBlock[b.id] || []));
     });
+
+    if (result.prose_edits && result.prose_edits.length) {
+      resultEl.appendChild(el("h2", null, "Prose changes"));
+      var pl = el("ul", "changes");
+      result.prose_edits.forEach(function (e) {
+        var li = el("li");
+        li.appendChild(el("del", null, e.old));
+        li.appendChild(document.createTextNode(" "));
+        li.appendChild(el("ins", null, e.new));
+        li.appendChild(el("div", "evidence", e.reason + " (linked to " + e.linked + ")"));
+        pl.appendChild(li);
+      });
+      resultEl.appendChild(pl);
+    }
+    var sug = result.suggestions || {};
+    if (Object.keys(sug).length) {
+      resultEl.appendChild(el("h2", null, "Suggested fixes (not applied)"));
+      var sl = el("ul", "changes");
+      Object.keys(sug).forEach(function (id) {
+        var li = el("li");
+        li.appendChild(document.createTextNode("Block " + id + ": "));
+        li.appendChild(el("code", null, sug[id]));
+        sl.appendChild(li);
+      });
+      resultEl.appendChild(sl);
+    }
 
     if (result.warnings && result.warnings.length) {
       var det = el("details");

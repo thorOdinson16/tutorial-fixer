@@ -44,6 +44,20 @@ def main() -> None:
         help="never edit a block that already runs (runs the original in its old and new "
         "environments first); on by default, --no-protect to switch off",
     )
+    ap.add_argument(
+        "--repair",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="also fix defects that are not version rot: missing imports and packages "
+        "(--no-repair to switch off)",
+    )
+    ap.add_argument(
+        "--prose",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="also update sentences that mention changed APIs or old versions "
+        "(--no-prose to switch off)",
+    )
     ap.add_argument("--out", default="runs/demo")
     args = ap.parse_args()
 
@@ -52,8 +66,13 @@ def main() -> None:
     llm = LLM.from_env()
     t0 = time.time()
     flags = CONFIGS[args.config]
-    if args.protect:
-        flags = flags.model_copy(update={"protect_working_blocks": True})
+    flags = flags.model_copy(
+        update={
+            "protect_working_blocks": args.protect or flags.protect_working_blocks,
+            "repair_defects": args.repair or flags.repair_defects,
+            "update_prose": args.prose or flags.update_prose,
+        }
+    )
     final = run_graph(state, flags=flags, llm=llm)
 
     out = Path(args.out)

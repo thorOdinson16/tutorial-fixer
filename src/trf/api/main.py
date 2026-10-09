@@ -67,6 +67,14 @@ class ChangeView(BaseModel):
     evidence_chunk_ids: list[str]
     source_urls: list[str]
     cited: bool
+    error: str | None = None  # defect_fix: the error the repair removed
+
+
+class ProseView(BaseModel):
+    old: str
+    new: str
+    reason: str
+    linked: str
 
 
 class Summary(BaseModel):
@@ -87,6 +95,8 @@ class JobResult(BaseModel):
     changes: list[ChangeView]
     warnings: list[str]
     migrated: dict[str, dict[str, str]]
+    prose_edits: list[ProseView] = []
+    suggestions: dict[str, str] = {}
 
 
 class JobView(BaseModel):
@@ -236,10 +246,16 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
                 description=e.description,
                 evidence_chunk_ids=e.evidence_chunk_ids,
                 source_urls=e.source_urls,
-                cited=e.kind != "llm_prior",
+                cited=e.kind not in ("llm_prior", "defect_fix"),
+                error=e.error,
             )
             for e in final.change_log
         ],
+        prose_edits=[
+            ProseView(old=e.old, new=e.new, reason=e.reason, linked=e.linked)
+            for e in final.prose_edits
+        ],
+        suggestions=dict(final.suggestions),
         warnings=final.warnings,
         migrated={
             lib: {"from": final.old_versions.get(lib, "unknown"), "to": ver}
@@ -253,8 +269,14 @@ def _default_runner(state: GraphState, on_stage: Callable[[str], None] | None = 
     from trf.graph import default_nodes, run_graph  # lazy: models/env only needed when a job runs
 
     flags = PipelineFlags.from_env()
-    if "TRF_PROTECT_WORKING_BLOCKS" not in os.environ:  # real tutorials: leave working code alone
-        flags = flags.model_copy(update={"protect_working_blocks": True})
+    # real tutorials: leave working code alone, fix forgotten imports, keep the prose in step
+    for env, field in (
+        ("TRF_PROTECT_WORKING_BLOCKS", "protect_working_blocks"),
+        ("TRF_REPAIR_DEFECTS", "repair_defects"),
+        ("TRF_UPDATE_PROSE", "update_prose"),
+    ):
+        if env not in os.environ:
+            flags = flags.model_copy(update={field: True})
     nodes = default_nodes(flags)
     if on_stage:
 
