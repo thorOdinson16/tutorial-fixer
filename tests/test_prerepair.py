@@ -97,3 +97,11 @@ def test_a_guessed_import_is_labelled_as_an_assumption():
     s2 = GraphState(blocks=blocks("p = Path('a')\n"), tutorial_md="from pathlib import Path\n")
     (e2,) = make_prerepair(ON)(s2)["change_log"]
     assert "assumed" not in e2.description
+
+
+def test_context_import_is_found_in_the_middle_of_a_prose_line():
+    from trf.nodes.prerepair import import_from_context
+
+    md = "Make sure to import Path (at the top of notes.py); from fastapi import APIRouter, Path"
+    assert import_from_context("Path", md) == "from fastapi import Path"
+    assert import_from_context("Query", md) is None

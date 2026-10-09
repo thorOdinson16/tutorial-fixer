@@ -25,14 +25,14 @@ from trf.state import ChangeLogEntry, GraphState
 IMPORTABLE = {n: line for n, line in COMMON_IMPORTS.items() if n.isidentifier()}
 # Names several libraries export: the default import is a GUESS unless the tutorial says otherwise.
 AMBIGUOUS = {"Path", "Field", "Enum", "Counter", "partial", "time", "copy", "string", "io"}
-_FROM_IMPORT = re.compile(r"^\s*from\s+([\w.]+)\s+import\s+(.+?)\s*$", re.MULTILINE)
+_FROM_IMPORT = re.compile(r"\bfrom\s+([\w.]+)\s+import\s+([^\n;]+)")
 
 
 def import_from_context(name: str, tutorial_md: str) -> str | None:
     """The import the tutorial itself shows for `name`, anywhere (code, prose, any block)."""
-    for m in _FROM_IMPORT.finditer(tutorial_md):
-        items = [part.strip().split(" as ")[0].strip() for part in m[2].strip("()").split(",")]
-        if name in items:
+    for m in _FROM_IMPORT.finditer(tutorial_md):  # anywhere in a line: prose often quotes it
+        tokens = re.findall(r"[A-Za-z_]\w*", m[2])
+        if name in tokens and tokens[tokens.index(name) - 1 : tokens.index(name)] != ["as"]:
             return f"from {m[1]} import {name}"
     m = re.search(rf"^\s*import\s+([\w.]+)\s+as\s+{re.escape(name)}\s*$", tutorial_md, re.M)
     return f"import {m[1]} as {name}" if m else None
