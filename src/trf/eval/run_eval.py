@@ -35,6 +35,7 @@ from trf.eval.loader import (
     load_case,
     load_expected_verdicts,
 )
+from trf.eval.prose_check import load_edits
 from trf.graph import run_graph
 from trf.llm import LLM, BudgetExceeded
 from trf.state import GraphState
@@ -67,6 +68,10 @@ CONFIGS: dict[str, PipelineFlags] = {
     ),
 }
 CONFIGS["6_protect"] = CONFIGS["5_loop"].model_copy(update={"protect_working_blocks": True})
+_P = CONFIGS["6_protect"]
+CONFIGS["7_repair"] = _P.model_copy(update={"repair_defects": True})
+CONFIGS["8_prose"] = _P.model_copy(update={"update_prose": True})
+CONFIGS["9_all"] = _P.model_copy(update={"repair_defects": True, "update_prose": True})
 DEFAULT_CONFIGS = ["0_original", "1_llm_only", "2_dense", "3_hybrid", "4_full", "5_loop"]
 
 GraphRunner = Callable[..., GraphState]
@@ -106,6 +111,7 @@ def run_one(
     """Returns (log, output_md, change_log_md)."""
     state0 = load_case(case, dataset_dir).model_copy(update={"max_loops": max_loops})
     expected = load_expected_verdicts(case, dataset_dir)
+    expected_prose = load_edits(case, dataset_dir)
     reference_md = (dataset_dir / f"{case}.fixed.md").read_text(encoding="utf-8")
     flags = CONFIGS.get(cfg_name)
     calls0, t0 = (llm.calls if llm else 0), time.time()
@@ -163,6 +169,9 @@ def run_one(
             "unresolved": M.unresolved_count(final)[0],
             "diff": M.diff_accuracy(final, expected) if has_diff else None,
             "minimal_edit": M.minimal_edit(state0.tutorial_md, final.output_md, reference_md),
+            "prose": M.prose_score(expected_prose, final.prose_edits) if expected_prose else None,
+            "defect_fixes": sum(e.kind == "defect_fix" for e in final.change_log),
+            "prose_edits": len(final.prose_edits),
         },
     }  # fmt: skip
     return log, final.output_md, final.change_log_md
@@ -252,6 +261,20 @@ def results_markdown(by_config: dict[str, list[dict]]) -> str:
                 + (" !" if row["error"] else "")
             )
         lines.append(f"| {case} | " + " | ".join(cells) + " |")
+    extra = []
+    for c, logs in by_config.items():
+        prose = [x["metrics"]["prose"] for x in logs if x["metrics"].get("prose")]
+        fixes = sum(x["metrics"].get("defect_fixes", 0) for x in logs)
+        applied = sum(x["metrics"].get("prose_edits", 0) for x in logs)
+        if prose or fixes or applied:
+            exp = sum(p["expected"] for p in prose)
+            ok = sum(p["correct"] for p in prose)
+            unneeded = sum(p["unneeded"] for p in prose)
+            extra.append(f"| {c} | {fixes} | {applied} | {exp} | {ok} | {unneeded} |")
+    if extra:
+        lines += ["", "## Defect repairs and prose edits", "",
+                  "| config | defect fixes | prose edits applied | expected | correct | unneeded |",
+                  "|---|---|---|---|---|---|", *extra]  # fmt: skip
     lines += ["", "`!` = the run crashed (blocks counted as unresolved). Metric definitions: "
               "see `trf/eval/metrics.py`.", ""]  # fmt: skip
     return "\n".join(lines)

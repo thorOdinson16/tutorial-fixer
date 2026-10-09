@@ -83,3 +83,20 @@ def test_minimal_edit_insertion_counts_as_a_change():
     orig = "```python\na = 1\nb = 2\n```\n"
     inserted = "```python\na = 1\nimport os\nb = 2\n```\n"
     assert minimal_edit(orig, inserted, orig)["unrelated_lines"] == 1
+
+
+def test_prose_score_counts_correct_and_unneeded_edits():
+    from types import SimpleNamespace as E
+
+    from trf.eval.metrics import prose_score
+
+    expected = [
+        {"old": "Uses pandas 1.3.5.", "new": "Uses pandas 2.3.3."},
+        {"old": "`append` adds a row.", "new": "`concat` adds a row."},
+    ]
+    got = [
+        E(old="Uses pandas 1.3.5.", new="Uses pandas 2.3.3."),
+        E(old="`append` adds a row.", new="Something quite different here."),
+        E(old="`groupby` splits data.", new="`groupby` splits the data."),
+    ]
+    assert prose_score(expected, got) == {"expected": 2, "applied": 3, "correct": 1, "unneeded": 1}

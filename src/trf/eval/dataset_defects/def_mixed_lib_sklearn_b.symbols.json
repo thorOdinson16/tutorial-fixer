@@ -1,0 +1,6 @@
+{
+  "sklearn.linear_model.LinearRegression(normalize)": "removed",
+  "sklearn.preprocessing.OneHotEncoder(sparse)": "renamed",
+  "sklearn.preprocessing.OneHotEncoder.get_feature_names": "removed",
+  "sklearn.tree.DecisionTreeRegressor(criterion)": "signature_changed"
+}

@@ -1,0 +1,27 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "None"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "[1, 2, 3]"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "[1, 26]"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "Friday"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "[1, 2, 3]"
+    ]
+  }
+}

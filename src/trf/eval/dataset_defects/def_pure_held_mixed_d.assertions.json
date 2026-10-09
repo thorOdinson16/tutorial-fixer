@@ -1,0 +1,8 @@
+{
+  "b2": {"stdout_contains": ["2 None"]},
+  "b3": {"stdout_contains": ["['ok', 'hot', 'ok']"]},
+  "b4": {"stdout_contains": ["7 21.5"]},
+  "b5": {"stdout_contains": ["{'a': 5.5, 'b': 2.0}"]},
+  "b6": {"stdout_contains": ["1"]},
+  "b7": {"stdout_contains": ["2.5"]}
+}

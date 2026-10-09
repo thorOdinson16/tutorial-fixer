@@ -1,0 +1,6 @@
+{
+  "matplotlib.axes.Axes.set_xscale(nonposx)": "signature_changed",
+  "matplotlib.axes.Axes.boxplot(labels)": "signature_changed",
+  "matplotlib.cm.cmap_d": "removed",
+  "matplotlib.axes.Axes.set_yscale(basey)": "signature_changed"
+}

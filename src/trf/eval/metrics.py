@@ -8,6 +8,8 @@ minimal edit      lines of the ORIGINAL code the system changed that the hand-fi
                   NOT change (unrelated churn), over all original code lines; plus the number of
                   prose segments altered (should be 0).
 unresolved rate   share of python blocks flagged `unresolved` (honest failure) rather than passing.
+prose             (prose-update cases) listed hand edits reproduced / applied edits that were not
+                  asked for.
 """
 
 from __future__ import annotations
@@ -56,6 +58,25 @@ def diff_accuracy(s: GraphState, expected: dict[str, str]) -> dict[str, int]:
         if got != "unchanged":
             out["changed_predicted"] += 1
     return out
+
+
+def prose_score(expected: list[dict], got: list) -> dict[str, int]:
+    """Compare applied prose edits with the hand-listed ones.
+
+    An applied edit is correct when its `old` sentence is one of the expected ones and its new text
+    is (nearly) the expected text; an edit to any other sentence is unneeded.
+    """
+    want = {e["old"]: e["new"] for e in expected}
+    correct = unneeded = 0
+    done: set[str] = set()
+    for g in got:
+        exp = want.get(g.old)
+        if exp is None:
+            unneeded += 1
+        elif g.old not in done and difflib.SequenceMatcher(None, g.new, exp).ratio() >= 0.9:
+            correct += 1
+            done.add(g.old)
+    return {"expected": len(want), "applied": len(got), "correct": correct, "unneeded": unneeded}
 
 
 def _changed_original_lines(orig: list[str], new: list[str]) -> set[int]:

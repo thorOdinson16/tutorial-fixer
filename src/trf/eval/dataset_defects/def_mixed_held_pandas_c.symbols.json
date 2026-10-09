@@ -1,0 +1,7 @@
+{
+  "pandas.date_range(closed)": "removed",
+  "pandas.Series.between(inclusive)": "signature_changed",
+  "pandas.Float64Index": "removed",
+  "pandas.Series.dt.weekofyear": "removed",
+  "pandas.Series.view": "removed"
+}

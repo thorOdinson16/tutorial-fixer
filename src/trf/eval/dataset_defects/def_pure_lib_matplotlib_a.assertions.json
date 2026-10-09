@@ -1,0 +1,32 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "Figure"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "#EAEAF2"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "#440154 #fde725"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "True"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "3 10"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "60000"
+    ]
+  }
+}

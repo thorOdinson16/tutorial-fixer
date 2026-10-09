@@ -1,0 +1,32 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "(3, 4)"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "[2.5, 10.0, 1250.5]"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "[4, 0, 2]"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "int64 553.0"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "['id', 'name', 'price']"
+    ]
+  },
+  "b7": {
+    "stdout_contains": [
+      "True True"
+    ]
+  }
+}
