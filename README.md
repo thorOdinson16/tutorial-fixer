@@ -1,5 +1,7 @@
 # Tutorial Rot Fixer
 
+[![ci](https://github.com/thorOdinson16/tutorial-fixer/actions/workflows/ci.yml/badge.svg)](https://github.com/thorOdinson16/tutorial-fixer/actions/workflows/ci.yml)
+
 Old Python tutorials rot: the library changed and the code no longer runs. This tool takes a
 tutorial (Markdown with Python code) and returns an updated version whose code **actually runs
 against current library versions**. Nothing is reported as passing unless it ran in a sandbox, and

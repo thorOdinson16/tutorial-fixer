@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install (no model downloads: the retrieval tests use small fixtures)
+        run: |
+          uv sync --extra api
+          uv pip install numpy
+      - name: Lint
+        run: |
+          uv run --no-sync ruff check src tests scripts
+          uv run --no-sync ruff format --check src tests scripts
+      - name: Tests (Docker-backed tests skip themselves when no sandbox image is built)
+        run: uv run --no-sync pytest -q
