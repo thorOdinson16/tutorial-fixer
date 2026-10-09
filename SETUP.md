@@ -104,6 +104,26 @@ PowerShell: `$env:TRF_LLM_PROVIDER = "ollama"` (and so on).
 | `TRF_CACHE_DIR` | `.trf_cache` | Corpus / HTTP / embedding cache location |
 | `TRF_SANDBOX_IMAGE`, `TRF_SANDBOX_MEMORY`, `TRF_SANDBOX_CPUS`, `TRF_SANDBOX_PIDS`, `TRF_SANDBOX_TIMEOUT_S`, `TRF_SANDBOX_PYTHON` | `trf-sandbox:latest`, `512m`, `1`, `128`, `60`, `3.12` | Sandbox limits and interpreter |
 
+## The web page
+
+`uv run trf-serve` checks Docker and the model settings, builds any missing corpus, and opens
+`http://127.0.0.1:8000`. On the page you can:
+
+- give a **web address** (blog posts and documentation both work; the page is fetched and converted
+  to Markdown, with versioned docs addresses telling the tool the old library version), **paste**
+  Markdown, or **upload** a `.md` file; "Check page" shows what was found (blocks, libraries) and an
+  estimate of time and model cost before anything runs;
+- switch the optional stages on or off under **Settings** (leave working blocks alone, fix missing
+  imports, update the prose, fix deprecation warnings) and set the retry rounds;
+- watch the pipeline stage by stage, then filter the blocks (needs attention / edited / untouched),
+  read per-block diffs with the cited evidence, see the whole tutorial diff, copy or download the
+  fixed Markdown, and reopen earlier runs from **History**.
+
+The top bar shows how much of the model budget (`TRF_MAX_SPEND_USD`) is used. Web addresses are
+only fetched over http(s), to public addresses (redirects are re-checked), up to 3 MB. The service
+has no login, so run it on your own machine. The front end is plain files under
+`src/trf/api/static/` (HTML, CSS, ES modules; no build step).
+
 ## 6. Common tasks
 
 ```bash

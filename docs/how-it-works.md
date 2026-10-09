@@ -85,6 +85,7 @@ make "runs without error" not the only pass criterion.
     llm.py           provider-agnostic wrapper (anthropic / openai-compatible / ollama), structured output, disk cache
     state.py         Pydantic models + GraphState
     graph.py         LangGraph wiring
+    webfetch.py      guarded page download + HTML to Markdown (CLI and web service)
     pypi.py          release metadata for version resolution
     nodes/           ingest, prerepair, extract, resolve_versions, precheck, retrieve, diff, rewrite,
                      sandbox, query_rewrite, repair, dewarn, prose, diagnose, assemble
@@ -93,7 +94,7 @@ make "runs without error" not the only pass criterion.
     eval/            dataset/ (15), dataset_heldout/ (6), dataset_libs/ (15), dataset_prose/ (9),
                      dataset_defects/ (12, generated), loader, baseline, validate_dataset, prose_check,
                      metrics, run_eval
-    api/             FastAPI service + static/index.html (single-file UI)
+    api/             FastAPI service; static/ is the front end (index.html, css/, js/ ES modules)
   scripts/           retrieval_sanity.py, demo.py, check_case.py, oracle_check.py, make_defect_set.py
   tests/
 ```

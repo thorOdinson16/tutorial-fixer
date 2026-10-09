@@ -16,7 +16,10 @@ What it does not do, and what the numbers do not show.
   changed default producing different output, cascades from an earlier block) leave the block
   `unresolved` rather than guessed at. The loop's gain is measured in Results.
 - The web service runs jobs in a worker pool (`TRF_API_WORKERS`, default 1) and keeps the last 100
-  in `.trf_cache/jobs`; there is no authentication, so run it locally.
+  in `.trf_cache/jobs`; there is no authentication, so run it locally. Web addresses are fetched only over http(s) to
+  public addresses (redirects re-checked), but the address is resolved once to check it and again to
+  connect, so a hostile DNS server could in principle answer differently the second time; another
+  reason not to expose the service. The model-cost estimate on the page is a rough per-block figure.
 
 
 - Fenced blocks indented more than three spaces (e.g. inside list items) are treated as prose.

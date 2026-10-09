@@ -35,7 +35,7 @@ change log   [api_change] pandas.DataFrame.append: replaced the removed append w
 git clone https://github.com/thorOdinson16/tutorial-fixer.git && cd tutorial-fixer
 uv sync --extra rag --extra api
 # put TRF_LLM_PROVIDER, TRF_LLM_MODEL, TRF_LLM_API_KEY in .env, start Docker, then:
-uv run trf-serve                                   # web UI: paste Markdown, see side-by-side diffs
+uv run trf-serve                                   # web UI: give a URL or paste Markdown, see diffs
 uv run python scripts/demo.py path/to/tutorial.md  # or the command line
 ```
 
