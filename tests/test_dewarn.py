@@ -233,3 +233,15 @@ def test_warned_blocks_groups_by_block():
     res = [run_result("b2", warnings=[WARN, {"category": "UserWarning", "message": "plain"}])]
     assert list(warned_blocks(res)) == ["b2"]
     assert len(warned_blocks(res)["b2"]) == 1  # the plain UserWarning is not handled
+
+
+@pytest.mark.docker
+@needs_docker
+def test_blocks_can_write_files_and_use_a_cache_dir_inside_the_sandbox():
+    code = (
+        "import os\nopen('note.txt', 'w').write('hi')\nprint(open('note.txt').read())\n"
+        "print(os.environ['HOME'], os.environ['MPLCONFIGDIR'], os.getcwd())\n"
+    )
+    r = run_offline(code, SandboxSettings(image="trf-sandbox:test", timeout_s=20))
+    assert r["exit_code"] == 0, r
+    assert r["stdout"].split() == ["hi", "/tmp", "/tmp/mpl", "/tmp"]

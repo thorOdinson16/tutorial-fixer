@@ -119,6 +119,9 @@ def run_offline(code: str, settings: SandboxSettings | None = None) -> dict:
         "--pids-limit", str(s.pids_limit),
         "--read-only",
         "--tmpfs", "/tmp:rw,size=64m",
+        # blocks may write files and libraries may build caches, but only inside the tmpfs
+        "--workdir", "/tmp",
+        "-e", "HOME=/tmp", "-e", "MPLCONFIGDIR=/tmp/mpl", "-e", "XDG_CACHE_HOME=/tmp/.cache",
         "--cap-drop", "ALL",
         "--security-opt", "no-new-privileges",
         s.image,
