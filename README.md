@@ -283,9 +283,11 @@ assertions, so "passing" only means the block ran; this is a smoke test, not a s
 
 Largest gains: a NumPy page 76 to 111 of 117 blocks, a Matplotlib chapter 1 to 15 of 15 and another
 0 to 10 of 10 (the old `seaborn-whitegrid` style names), a scikit-learn chapter 20 to 25 of 32, a
-pandas add-row page 0 to 2 of 3. Output comparison against the original in its old environment: 58 of
-58 comparable blocks matched on the pages where the old environment could be built, apart from one
-`object`-dtype difference that the change log now flags.
+pandas add-row page 0 to 2 of 3. Output comparison against the original in its old environment was
+run on the three pandas pages whose 2021 environment could be built: 59 of 60 comparable blocks
+printed the same output, and the one difference (an edit that turned every column into `object`
+dtype) is what the change log's "Output compared with the original" section now flags. The other
+pages were not compared.
 
 What does not improve is mostly not version rot, and the change log says so per block ("Likely
 cause: ..."): a snippet that uses `List` or `Alice` without defining it, imports of the author's own
