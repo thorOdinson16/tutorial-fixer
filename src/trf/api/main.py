@@ -232,7 +232,8 @@ def build_result(original_md: str, final: GraphState) -> JobResult:
                 output_matches=matches.get(b.id),
                 diagnosis=(
                     d.text
-                    if b.status in ("failing", "unresolved") and (d := diagnose(b.last_error))
+                    if b.status in ("failing", "unresolved")
+                    and (d := diagnose(b.last_error, b.source))
                     else None
                 ),
             )

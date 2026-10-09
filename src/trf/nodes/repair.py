@@ -98,8 +98,10 @@ def plan_repairs(state: GraphState) -> list[Repair]:
                 )
                 seen.add(name)
             continue
-        m = re.search(r"No module named '([\w.]+)'", err) or re.search(
-            r"Missing optional dependency '([\w.-]+)'", err
+        m = (
+            re.search(r"No module named '([\w.]+)'", err)
+            or re.search(r"Missing optional dependency '([\w.-]+)'", err)
+            or re.search(r"requires the ['\"]?([\w.-]+)['\"]? package", err)
         )
         if m:
             root = m.group(1).split(".")[0]
@@ -153,7 +155,9 @@ def _same_defect(repair: Repair, block: CodeBlock) -> bool:
         return False
     if repair.kind == "import" or repair.kind == "placeholder":
         return _name_error(err) == repair.detail
-    return repair.detail in err and ("No module named" in err or "Missing optional" in err)
+    return repair.detail in err and any(
+        t in err for t in ("No module named", "Missing optional", "package to be installed")
+    )
 
 
 def make_repair(

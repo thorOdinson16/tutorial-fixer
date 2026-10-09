@@ -180,7 +180,7 @@ def build_change_log(state: GraphState, blocks: list[CodeBlock]) -> str:
         ]
         for b in unresolved:
             lines.append(f"- **{b.id}**: {b.last_error}")
-            d = diagnose(b.last_error)
+            d = diagnose(b.last_error, b.source)
             if d:
                 lines.append(f"  - Likely cause: {d.text}.")
         lines.append("")

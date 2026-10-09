@@ -194,3 +194,16 @@ def test_defect_fix_entries_must_quote_the_error():
     with pytest.raises(ValidationError):
         ChangeLogEntry(block_id="b", kind="defect_fix", description="x")
     ChangeLogEntry(block_id="b", kind="defect_fix", description="x", error="NameError: ...")
+
+
+def test_more_stdlib_names_and_a_requires_package_error_are_repairable():
+    s = GraphState(
+        blocks=[
+            blk("b2", "p = Path('a')\n", "failing", "NameError: name 'Path' is not defined"),
+            blk("b3", "from starlette.testclient import TestClient", "failing",
+                "RuntimeError: The starlette.testclient module requires the httpx package to be installed."),
+        ]
+    )  # fmt: skip
+    got = [(p.block_id, p.kind, p.text) for p in plan_repairs(s)]
+    assert ("b2", "import", "from pathlib import Path") in got
+    assert ("b3", "package", "httpx") in got

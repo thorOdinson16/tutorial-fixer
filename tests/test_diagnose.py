@@ -43,3 +43,19 @@ def test_change_log_explains_unresolved_blocks():
     md = build_change_log(GraphState(blocks=[b]), [b])
     assert "- **b2**: NameError: name 'List' is not defined" in md
     assert "Likely cause: uses `List` but no earlier code imports it" in md
+
+
+def test_pasted_output_is_told_apart_from_a_forgotten_import():
+    err = "NameError: name 'Index' is not defined"
+    d = diagnose(err, "Index(['a', 'b'], dtype='object')")
+    assert d is not None and d.kind == "pasted_output" and "OUTPUT" in d.text
+    assert diagnose("NameError: name 'array' is not defined", "array([1, 2, 3])").kind == (
+        "pasted_output"
+    )
+    # not at the start of the cell, or not a repr name: the ordinary diagnoses apply
+    assert diagnose(err, "x = Index([1])").kind == "undefined_name"
+    assert diagnose("NameError: name 'Path' is not defined", "Path('a')").kind == "missing_import"
+    assert (
+        "from pathlib import Path"
+        in diagnose("NameError: name 'Path' is not defined", "Path('a')").text
+    )

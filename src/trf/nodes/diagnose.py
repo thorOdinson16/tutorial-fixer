@@ -25,6 +25,23 @@ COMMON_IMPORTS = {
     "pandas": "import pandas", "numpy": "import numpy", "pydantic": "import pydantic",
     "BaseModel": "from pydantic import BaseModel", "Field": "from pydantic import Field",
     "datetime.date": "from datetime import date",
+    "Path": "from pathlib import Path", "Counter": "from collections import Counter",
+    "defaultdict": "from collections import defaultdict",
+    "namedtuple": "from collections import namedtuple", "deepcopy": "from copy import deepcopy",
+    "partial": "from functools import partial", "Enum": "from enum import Enum",
+    "dataclass": "from dataclasses import dataclass", "Decimal": "from decimal import Decimal",
+    "timedelta": "from datetime import timedelta", "itertools": "import itertools",
+    "functools": "import functools", "collections": "import collections", "time": "import time",
+    "logging": "import logging", "shutil": "import shutil", "csv": "import csv",
+    "pickle": "import pickle", "copy": "import copy", "io": "import io", "uuid": "import uuid",
+    "pathlib": "import pathlib", "subprocess": "import subprocess", "string": "import string",
+}  # fmt: skip
+
+# Names that appear in the printed form of values (`Index([...], dtype=...)`, `array([...])`).
+# A code cell that STARTS with one of them was almost certainly output pasted as code.
+REPR_NAMES = {
+    "Index", "RangeIndex", "MultiIndex", "DatetimeIndex", "Int64Index", "Float64Index",
+    "array", "Timestamp", "Timedelta", "Categorical", "CategoricalIndex", "PeriodIndex",
 }  # fmt: skip
 
 LOCAL_MODULES = {
@@ -40,8 +57,11 @@ class Diagnosis:
     text: str
 
 
-def diagnose(error: str | None) -> Diagnosis | None:
-    """A plain-language reading of one block's last error, or None if it looks like real rot."""
+def diagnose(error: str | None, source: str | None = None) -> Diagnosis | None:
+    """A plain-language reading of one block's last error, or None if it looks like real rot.
+
+    `source` (the block's code) lets it tell printed output pasted as code from a real omission.
+    """
     if not error:
         return None
     cascade = re.search(r"\[after earlier failure in (\w+)", error)
@@ -58,6 +78,12 @@ def diagnose(error: str | None) -> Diagnosis | None:
     m = re.search(r"NameError: name '([\w.]+)' is not defined", error)
     if m:
         name = m.group(1)
+        if source and name in REPR_NAMES and source.lstrip().startswith(name + "("):
+            return Diagnosis(
+                "pasted_output",
+                f"the cell starts with `{name}(...)`, which is printed OUTPUT pasted into a code "
+                "cell, not code; the tutorial should show it as output",
+            )
         fix = COMMON_IMPORTS.get(name)
         if fix:
             return Diagnosis(
