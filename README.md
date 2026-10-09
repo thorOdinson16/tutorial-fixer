@@ -438,6 +438,44 @@ prose, and a guess is labelled "assumed" in the change log), and several "undefi
 notebook-style pages (`Index([...])`, `array([...])`) are printed output pasted into code cells, which
 the change log now says.
 
+### Official documentation pages (25 links)
+
+Version-pinned pages from the projects' own docs (pandas 1.3/1.5, pydantic 1.10, NumPy 1.17/1.19,
+SQLAlchemy 1.3/1.4, scikit-learn 0.23/0.24, Matplotlib 2.2.5/3.3) were fetched with
+`scripts/web_to_md.py` and run with every mode on by `scripts/real_eval.py`. Two things differ from
+the pages above: the docs are written as interactive sessions (`>>> code`, output lines), so the
+converter extracts the code and drops prompts and output; and a docs URL names the library version
+it describes, so the converter puts a `pip install lib==X` line at the top (information the tool
+added, not the author's).
+
+| group | pages that ran | python blocks | run as-is | after |
+|---|---|---|---|---|
+| SQLAlchemy 1.3 / 1.4 and pydantic 1.10 | 5 | 300 | 124 | 201 |
+| NumPy 1.17 / 1.19 | 5 | 272 | 171 | 206 |
+| Matplotlib 2.2.5 | 4 | 49 | 39 | 44 |
+| scikit-learn 0.23 / 0.24 | 3 | 33 | 12 | 14 |
+| **total** | **17** | **654** | **346** | **465** |
+
+Seven of the 25 links had nothing to run (landing pages, an example page with output only, two
+pydantic pages whose code is drawn by JavaScript so the download contains none) and one URL (pandas
+1.3 tutorials index) is a 404. 33 prose edits were applied and 124 cited API edits, 17 version pins
+and 4 defect fixes were made. Largest gains: the SQLAlchemy 1.3 core tutorial 35 to 98 of 105 blocks,
+the NumPy 1.17 release notes page 2 to 33 of 42, the NumPy beginners guide 122 to 122 of 124 after
+the sandbox could write files.
+
+Why the rest still fails: about 160 of the ~190 failing blocks are downstream of just 13 root blocks
+(a block fails, everything that needs its names fails after it). The roots are: an object defined
+only in an earlier doctest the page never ran (`our_user`, `actual`), a sample image from `scipy`
+(`scipy.misc.face`, scipy is not a supported library: one page, 34 blocks), a download from the
+network (20 newsgroups), a table that only exists in a database the page never built, and two real
+API changes the release notes the tool holds do not mention in a way it can find (`np.reshape(newshape=)`
+and Matplotlib's `linthreshy`): a limit of the corpus, not of the pipeline.
+
+Bugs these pages found, all fixed: the Matplotlib 2.2.5 old environment asked for Python 3.6, which
+the in-container runner cannot run (any old-environment failure is now only a warning, and the
+floor is 3.7); blocks could not write a file or build a Matplotlib cache on the read-only
+filesystem (they now get a writable scratch directory inside the tmpfs).
+
 ## Reproducing the evaluation
 
 ```bash
