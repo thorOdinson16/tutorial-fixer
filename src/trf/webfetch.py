@@ -40,7 +40,7 @@ MAGIC = re.compile(r"^\s*[!%]", re.M)
 PIN_HINTS = [
     (r"pandas\.pydata\.org/pandas-docs/version/1\.3", "pandas==1.3.5"),
     (r"pandas\.pydata\.org/pandas-docs/version/1\.5", "pandas==1.5.3"),
-    (r"docs\.pydantic\.dev/1\.10", "pydantic==1.10.13"),
+    (r"pydantic\.dev/(?:docs/validation/)?1\.10", "pydantic==1.10.13"),
     (r"pydantic-docs\.helpmanual\.io", "pydantic==1.10.13"),
     (r"numpy\.org/doc/1\.19", "numpy==1.19.5"),
     (r"numpy\.org/doc/1\.17", "numpy==1.17.5"),
@@ -177,7 +177,8 @@ def slug(url: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_")[:90]
 
 
-def convert(url: str, raw_html: str, pin: bool = True) -> str:
+def convert(url: str, raw_html: str, pin: bool = True, also: tuple[str, ...] = ()) -> str:
+    """`also`: other addresses the page was reached by (before redirects); pins match any."""
     p = Page()
     p.feed(raw_html)
     p.close()
@@ -192,7 +193,12 @@ def convert(url: str, raw_html: str, pin: bool = True) -> str:
     head = (
         f"---\ntitle: {json.dumps(title)[1:-1]}\n" + (f"date: {date}\n" if date else "") + "---\n\n"
     )
-    req = next((r for pat, r in PIN_HINTS if re.search(pat, url)), None) if pin else None
+    seen = (url, *also)
+    req = (
+        next((r for pat, r in PIN_HINTS if any(re.search(pat, u) for u in seen)), None)
+        if pin
+        else None
+    )
     pinned = f"```bash\npip install {req}\n```\n\n" if req else ""
     return head + pinned + body
 
@@ -234,7 +240,7 @@ def fetch_markdown(url: str, pin: bool = True) -> tuple[str, str]:
     Only http(s) to public addresses (re-checked on every redirect), at most MAX_BYTES, HTML,
     Markdown or plain text. The page is parsed, never executed.
     """
-    current = _check_url(url)
+    current = asked = _check_url(url)
     headers = {"User-Agent": USER_AGENT}
     with httpx.Client(timeout=TIMEOUT_S, headers=headers, follow_redirects=False) as client:
         for _ in range(MAX_REDIRECTS + 1):
@@ -269,6 +275,6 @@ def fetch_markdown(url: str, pin: bool = True) -> tuple[str, str]:
         return text, title or slug(current)
     if kind and "html" not in kind:
         raise FetchError(f"That address is {kind}, not a web page or Markdown.")
-    md = convert(current, text, pin=pin)
+    md = convert(current, text, pin=pin, also=(asked,))
     m = re.search(r"^title: (.*)$", md, re.M)
     return md, (json.loads(f'"{m.group(1)}"') if m else slug(current))

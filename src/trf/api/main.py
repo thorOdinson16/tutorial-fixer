@@ -43,9 +43,9 @@ MODES: dict[str, tuple[str, str]] = {
     "prose": ("update_prose", "TRF_UPDATE_PROSE"),
     "warnings": ("fix_warnings", "TRF_FIX_WARNINGS"),
 }
-# rough planning numbers behind the estimate shown before a run (seconds / ledger dollars per block)
-SECONDS_PER_BLOCK = 4.0
-LEDGER_USD_PER_BLOCK = 0.004
+# planning numbers behind the estimate: measured on the 606-block hold-out run, rounded up
+SECONDS_PER_BLOCK = 8.0
+LEDGER_USD_PER_BLOCK = 0.0012
 
 
 class JobRequest(BaseModel):

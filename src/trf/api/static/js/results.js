@@ -3,6 +3,8 @@ import { api } from "./api.js";
 import { append, clear, el } from "./dom.js";
 import { diffView } from "./diff.js";
 
+const BROKEN = (b) => b.status === "failing" || b.status === "unresolved";
+
 const BADGE = {
   passing: ["passing", "passing"],
   unresolved: ["unresolved", "could not fix"],
@@ -49,7 +51,7 @@ function blockCard(block, changes) {
   const card = el("details", "card block");
   card.dataset.status = block.status;
   card.dataset.changed = block.changed ? "1" : "0";
-  if (block.status !== "passing" && !block.downstream_of) card.open = true;
+  if (BROKEN(block) && !block.downstream_of) card.open = true;
   const head = el("summary");
   head.appendChild(el("span", "block-title", "Block " + block.id));
   head.appendChild(el("span", "muted", block.lang || "-"));
@@ -94,12 +96,12 @@ function blocksPane(result) {
   const list = el("div");
   const defs = [
     ["all", "All", () => true],
-    ["problem", "Needs attention", (b) => b.status !== "passing" && !b.downstream_of],
+    ["problem", "Needs attention", (b) => BROKEN(b) && !b.downstream_of],
     ["after", "After a failure", (b) => Boolean(b.downstream_of)],
     ["changed", "Edited", (b) => b.changed],
     ["same", "Untouched", (b) => !b.changed],
   ];
-  let active = result.blocks.some((b) => b.status !== "passing" && !b.downstream_of) ? "problem" : "all";
+  let active = result.blocks.some((b) => BROKEN(b) && !b.downstream_of) ? "problem" : "all";
   const cards = py.map((b) => ({ b, node: blockCard(b, byBlock[b.id] || []) }));
   const buttons = [];
   const apply = () => {
@@ -216,7 +218,7 @@ export function renderResult(container, jobId, title, result) {
   append(head, copy, dl);
   container.appendChild(head);
 
-  const edited = result.blocks.filter((b) => b.changed).length;
+  const edited = result.blocks.filter((b) => b.changed && b.lang === "python").length;
   const tiles = el("div", "summary");
   tiles.style.marginTop = "14px";
   const allGood = s.total_python_blocks > 0 && s.passing === s.total_python_blocks;

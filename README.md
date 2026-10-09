@@ -16,6 +16,18 @@ change log   [api_change] pandas.DataFrame.append: replaced the removed append w
              block b3: passing    output identical to the original run on pandas 1.3.5
 ```
 
+## The web page
+
+Paste a tutorial, give a web address, or upload a file; see what it found and an estimate before
+anything runs; watch each stage; then read every block's diff with the release note behind it.
+
+| 1. Give it a page | 2. Watch it work | 3. Read the result |
+|---|---|---|
+| ![input](docs/img/ui-input.png) | ![progress](docs/img/ui-progress.png) | ![result](docs/img/ui-result.png) |
+
+(Real run: pydantic's v1.10 *Settings* page. 5 of 7 blocks run on pydantic 2.14; the other two
+depend on an environment variable the page never sets.)
+
 ## What it does
 
 - **Fixes version rot** for seven libraries: pandas 1.x to 2.x, pydantic v1 to v2, NumPy 1.x to 2.x,

@@ -88,3 +88,18 @@ def test_markdown_is_passed_through(monkeypatch):
     monkeypatch.setattr(webfetch.httpx, "Client", _client_factory(handler))
     md, title = fetch_markdown("https://example.com/t.md")
     assert md == body and title == "Title"
+
+
+def test_pin_follows_the_address_that_was_asked_for_even_after_a_redirect(monkeypatch):
+    monkeypatch.setattr(webfetch, "_check_host", lambda host: None)
+
+    def handler(request):
+        if request.url.host == "docs.pydantic.dev":
+            return httpx.Response(301, headers={"location": "https://pydantic.dev/docs/x/"})
+        return httpx.Response(
+            200, text="<h1>T</h1><pre>x = 1</pre>", headers={"content-type": "text/html"}
+        )
+
+    monkeypatch.setattr(webfetch.httpx, "Client", _client_factory(handler))
+    md, _ = fetch_markdown("https://docs.pydantic.dev/1.10/usage/settings/")
+    assert "pip install pydantic==1.10.13" in md

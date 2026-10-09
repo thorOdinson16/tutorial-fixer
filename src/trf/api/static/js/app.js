@@ -113,7 +113,7 @@ function refreshEstimate() {
       box.textContent = "No Python code blocks were found, so there is nothing to fix.";
     } else {
       box.textContent =
-        "Estimate: " + minutes(p.est_seconds) + ", about $" + p.est_budget_usd.toFixed(2) +
+        "Estimate: " + minutes(p.est_seconds) + ", " + (p.est_budget_usd < 0.01 ? "under $0.01" : "about $" + p.est_budget_usd.toFixed(2)) +
         " in model fees at most. Blocks that already run are left alone.";
     }
   } else if (hasSource()) {
