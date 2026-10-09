@@ -186,6 +186,9 @@ class LibraryConfig(BaseModel):
     docs_sources: list[str] = Field(default_factory=list)
     changelog_sources: list[str] = Field(default_factory=list)
     migration_sources: list[str] = Field(default_factory=list)
+    # Python files (raw URLs at a release tag) whose deprecation decorators, warnings and docstring
+    # directives are mined (see rag/sourcemine.py): changes the release notes do not spell out.
+    source_files: list[str] = Field(default_factory=list)
     target_major: int | None = None  # the migration's destination major (v1: pandas 2, pydantic 2)
     bundled_imports: list[str] = Field(default_factory=list)  # modules pip installs with it
     version_resolver: VersionResolver = pypi_latest
@@ -195,6 +198,11 @@ class LibraryConfig(BaseModel):
 
 
 LIBRARIES: dict[str, LibraryConfig] = {}
+
+
+def _src(repo: str, tag: str, prefix: str, *files: str) -> list[str]:
+    """Raw URLs of `files` in `repo` at `tag`, e.g. the last release before a removal."""
+    return [f"https://raw.githubusercontent.com/{repo}/{tag}/{prefix}{f}" for f in files]
 
 
 def register_library(cfg: LibraryConfig) -> LibraryConfig:
@@ -228,6 +236,16 @@ register_library(
         ],
         changelog_sources=[f"{_GH}/pydantic/pydantic/main/HISTORY.md"],
         migration_sources=[f"{_PD_DOCS}/migration.md"],
+        source_files=_src(
+            "pydantic/pydantic",
+            "v2.12.0",
+            "pydantic/",
+            "main.py",
+            "fields.py",
+            "deprecated/class_validators.py",
+            "deprecated/config.py",
+            "deprecated/tools.py",
+        ),
     )
 )
 register_library(
@@ -244,6 +262,19 @@ register_library(
             + ("2.1.0", "2.2.0", "2.3.0")
         ],
         migration_sources=[f"{_PANDAS_WN}/v2.0.0.rst"],
+        source_files=_src(
+            "pandas-dev/pandas",
+            "v1.5.3",
+            "pandas/",
+            "core/frame.py",
+            "core/series.py",
+            "core/generic.py",
+            "core/groupby/groupby.py",
+            "io/parsers/readers.py",
+            "core/indexes/base.py",
+            "core/resample.py",
+            "io/excel/_base.py",
+        ),
     )
 )
 
@@ -259,6 +290,15 @@ register_library(
             for v in [f"1.{m}.0" for m in range(17, 27)] + ["2.0.0", "2.1.0", "2.2.0", "2.3.0"]
         ],
         migration_sources=[f"{_NP_DOC}/numpy_2_0_migration_guide.rst"],
+        source_files=_src(
+            "numpy/numpy",
+            "v2.3.0",
+            "numpy/",
+            "_core/fromnumeric.py",
+            "_core/numeric.py",
+            "lib/_function_base_impl.py",
+            "lib/_shape_base_impl.py",
+        ),
     )
 )
 
@@ -276,6 +316,19 @@ register_library(
             f"{_SA_DOC}/{n}.rst"
             for n in ("migration_13", "migration_14", "migration_20", "whatsnew_20")
         ],
+        source_files=_src(
+            "sqlalchemy/sqlalchemy",
+            "rel_1_4_54",
+            "lib/sqlalchemy/",
+            "engine/base.py",
+            "sql/selectable.py",
+            "sql/schema.py",
+            "orm/query.py",
+            "engine/reflection.py",
+            "sql/elements.py",
+            "orm/session.py",
+            "sql/dml.py",
+        ),
     )
 )
 
@@ -290,6 +343,20 @@ register_library(
             f"{_SK_DOC}/v{v}.rst"
             for v in [f"0.{m}" for m in range(18, 25)] + [f"1.{m}" for m in range(0, 9)]
         ],
+        source_files=_src(
+            "scikit-learn/scikit-learn",
+            "1.3.2",
+            "sklearn/",
+            "linear_model/_base.py",
+            "preprocessing/_encoders.py",
+            "datasets/_base.py",
+            "cluster/_agglomerative.py",
+            "tree/_classes.py",
+            "ensemble/_forest.py",
+            "linear_model/_logistic.py",
+            "metrics/_regression.py",
+            "linear_model/_ridge.py",
+        ),
     )
 )
 
@@ -303,6 +370,17 @@ register_library(
         changelog_sources=[
             f"{_SP_DOC}/1.{m}.0-notes.rst" for m in range(2, 18)
         ],  # 1.2.0 ... 1.17.0 (misc.* moves, interp2d, simps, signal windows, ...)
+        source_files=_src(
+            "scipy/scipy",
+            "v1.12.0",
+            "scipy/",
+            "integrate/_quadrature.py",
+            "interpolate/_interpolate.py",
+            "signal/_signaltools.py",
+            "linalg/_basic.py",
+            "stats/_stats_py.py",
+        )
+        + _src("scipy/scipy", "v1.11.4", "scipy/", "misc/_common.py"),
     )
 )
 
@@ -331,6 +409,24 @@ register_library(
             for f in ("removals", "deprecations", "behaviour")
             if f"{v}.0/{f}" not in _MPL_MISSING
         ],
+        source_files=_src(
+            "matplotlib/matplotlib",
+            "v3.4.3",
+            "lib/matplotlib/",
+            "scale.py",
+            "axes/_axes.py",
+            "axis.py",
+        )
+        + _src(
+            "matplotlib/matplotlib",
+            "v3.8.4",
+            "lib/matplotlib/",
+            "cm.py",
+            "pyplot.py",
+            "axes/_base.py",
+            "figure.py",
+        )
+        + _src("matplotlib/matplotlib", "v3.6.3", "lib/matplotlib/", "style/core.py"),
     )
 )
 

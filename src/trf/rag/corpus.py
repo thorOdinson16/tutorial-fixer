@@ -18,6 +18,7 @@ import httpx
 
 from trf.config import LIBRARIES, LibraryConfig, get_cache_dir, get_library
 from trf.rag.chunking import chunk_document
+from trf.rag.sourcemine import mine
 from trf.state import Chunk, DocType
 
 Fetcher = Callable[[str], str]
@@ -77,6 +78,8 @@ def build_corpus(cfg: LibraryConfig, fetch: Fetcher, *, max_chars: int = 1000) -
                 headings_have_versions=doc_type == "changelog",
                 max_chars=max_chars,
             )
+    for url in cfg.source_files:  # deprecations the release notes do not spell out
+        chunks += mine(fetch(url), cfg.name, url)
     ids = [c.id for c in chunks]
     assert len(ids) == len(set(ids)), "chunk ids must be unique"
     return chunks

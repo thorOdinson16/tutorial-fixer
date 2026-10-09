@@ -1,6 +1,6 @@
 {
   "scipy.signal.hann": "renamed",
+  "scipy.signal.hamming": "renamed",
   "scipy.signal.gaussian": "renamed",
-  "scipy.signal.blackman": "renamed",
-  "scipy.ndimage.filters.gaussian_filter1d": "renamed"
+  "scipy.signal.blackman": "renamed"
 }

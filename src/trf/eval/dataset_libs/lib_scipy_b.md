@@ -11,12 +11,12 @@ Window functions and filters for smoothing short signals, in the style of the Sc
 pip install scipy==1.6.3
 ```
 
-A five-point Hann window:
+A five-point Hann and Hamming window:
 
 ```python
 import numpy as np
-from scipy.signal import hann
-print(np.round(hann(5), 4).tolist())
+from scipy.signal import hann, hamming
+print(np.round(hann(5), 4).tolist(), np.round(hamming(5), 4).tolist())
 ```
 
 A five-point Gaussian window with unit standard deviation:

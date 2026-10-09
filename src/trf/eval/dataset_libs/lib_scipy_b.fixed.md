@@ -11,12 +11,12 @@ Window functions and filters for smoothing short signals, in the style of the Sc
 pip install scipy==1.18.1
 ```
 
-A five-point Hann window:
+A five-point Hann and Hamming window:
 
 ```python
 import numpy as np
-from scipy.signal.windows import hann
-print(np.round(hann(5), 4).tolist())
+from scipy.signal.windows import hann, hamming
+print(np.round(hann(5), 4).tolist(), np.round(hamming(5), 4).tolist())
 ```
 
 A five-point Gaussian window with unit standard deviation:
@@ -37,7 +37,7 @@ print(medfilt(x, 3).tolist())
 Gaussian smoothing of a ramp along one axis:
 
 ```python
-from scipy.ndimage import gaussian_filter1d
+from scipy.ndimage.filters import gaussian_filter1d
 ramp = np.arange(10.0)
 out = gaussian_filter1d(ramp, sigma=1.0)
 print(round(float(out[5]), 4))
