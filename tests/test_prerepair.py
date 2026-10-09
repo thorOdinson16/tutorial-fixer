@@ -73,3 +73,27 @@ def test_a_later_rewrite_keeps_the_repair_entry_of_its_block():
     )(s)
     kinds = sorted(e.kind for e in out["change_log"] if e.block_id == "b2")
     assert kinds == ["api_change", "defect_fix"]
+
+
+def test_the_tutorial_itself_decides_where_an_ambiguous_name_comes_from():
+    from trf.nodes.prerepair import import_from_context
+
+    md = (
+        "Make sure to import Path:\n\nfrom fastapi import APIRouter, HTTPException, Path\n\n"
+        "and `import numpy as np`.\n"
+    )
+    assert import_from_context("Path", md) == "from fastapi import Path"
+    assert import_from_context("APIRouter", md) == "from fastapi import APIRouter"
+    assert import_from_context("Field", md) is None
+    bs = blocks("p = Path(..., gt=0)\n")
+    assert missing_imports(bs, md) == {"b2": ["from fastapi import Path"]}
+    assert missing_imports(bs, "") == {"b2": ["from pathlib import Path"]}  # the default guess
+
+
+def test_a_guessed_import_is_labelled_as_an_assumption():
+    s = GraphState(blocks=blocks("p = Path('a')\n"), tutorial_md="")
+    (e,) = make_prerepair(ON)(s)["change_log"]
+    assert "assumed" in e.description
+    s2 = GraphState(blocks=blocks("p = Path('a')\n"), tutorial_md="from pathlib import Path\n")
+    (e2,) = make_prerepair(ON)(s2)["change_log"]
+    assert "assumed" not in e2.description

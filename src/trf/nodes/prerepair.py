@@ -14,6 +14,7 @@ change-log entry.
 from __future__ import annotations
 
 import ast
+import re
 from collections.abc import Callable
 
 from trf.config import PipelineFlags
@@ -22,6 +23,19 @@ from trf.nodes.extract import strip_magics
 from trf.state import ChangeLogEntry, GraphState
 
 IMPORTABLE = {n: line for n, line in COMMON_IMPORTS.items() if n.isidentifier()}
+# Names several libraries export: the default import is a GUESS unless the tutorial says otherwise.
+AMBIGUOUS = {"Path", "Field", "Enum", "Counter", "partial", "time", "copy", "string", "io"}
+_FROM_IMPORT = re.compile(r"^\s*from\s+([\w.]+)\s+import\s+(.+?)\s*$", re.MULTILINE)
+
+
+def import_from_context(name: str, tutorial_md: str) -> str | None:
+    """The import the tutorial itself shows for `name`, anywhere (code, prose, any block)."""
+    for m in _FROM_IMPORT.finditer(tutorial_md):
+        items = [part.strip().split(" as ")[0].strip() for part in m[2].strip("()").split(",")]
+        if name in items:
+            return f"from {m[1]} import {name}"
+    m = re.search(rf"^\s*import\s+([\w.]+)\s+as\s+{re.escape(name)}\s*$", tutorial_md, re.M)
+    return f"import {m[1]} as {name}" if m else None
 
 
 def _bound_and_used(source: str) -> tuple[set[str], set[str]] | None:
@@ -46,7 +60,7 @@ def _bound_and_used(source: str) -> tuple[set[str], set[str]] | None:
     return bound, used
 
 
-def missing_imports(blocks) -> dict[str, list[str]]:
+def missing_imports(blocks, tutorial_md: str = "") -> dict[str, list[str]]:
     """block id -> import lines to add (in order), by static analysis of the python blocks."""
     defined: set[str] = set()
     out: dict[str, list[str]] = {}
@@ -59,7 +73,8 @@ def missing_imports(blocks) -> dict[str, list[str]]:
         bound, used = got
         for name in sorted(used & IMPORTABLE.keys()):
             if name not in defined and name not in bound:
-                out.setdefault(b.id, []).append(IMPORTABLE[name])
+                line = import_from_context(name, tutorial_md) or IMPORTABLE[name]
+                out.setdefault(b.id, []).append(line)
                 defined.add(name)
         defined |= bound
     return out
@@ -70,7 +85,7 @@ def make_prerepair(flags: PipelineFlags | None = None) -> Callable[[GraphState],
         f = flags or PipelineFlags()
         if not f.repair_defects:
             return {}
-        todo = missing_imports(state.blocks)
+        todo = missing_imports(state.blocks, state.tutorial_md)
         if not todo:
             return {}
         blocks, entries = list(state.blocks), list(state.change_log)
@@ -81,12 +96,14 @@ def make_prerepair(flags: PipelineFlags | None = None) -> Callable[[GraphState],
             blocks[i] = b.model_copy(update={"source": "\n".join(lines) + "\n" + b.source})
             for line in lines:
                 name = line.split()[-1]
+                guess = name in AMBIGUOUS and not import_from_context(name, state.tutorial_md)
+                note = " (assumed: the tutorial does not say where it comes from)" if guess else ""
                 entries.append(
                     ChangeLogEntry(
                         block_id=b.id,
                         kind="defect_fix",
                         description=f"Added `{line}`: the block uses `{name}` but nothing "
-                        "imports it.",
+                        f"imports it{note}.",
                         error=f"static check: `{name}` is used but never imported or defined",
                     )
                 )
