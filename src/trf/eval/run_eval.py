@@ -198,7 +198,7 @@ def aggregate(logs: list[dict]) -> dict:
         "block_pass_rate": passed / total if total else 0.0,
         "tutorial_pass_rate": sum(x["metrics"]["tutorial_pass"] for x in logs) / n if n else 0.0,
         "diff_accuracy": (sum(d["correct"] for d in diffs) / sum(d["symbols"] for d in diffs))
-        if diffs
+        if diffs and sum(d["symbols"] for d in diffs)
         else None,
         "changed_recall": (sum(d["changed_hit"] for d in diffs) / changed_exp)
         if diffs and changed_exp

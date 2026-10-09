@@ -21,6 +21,7 @@ from trf.nodes import (
     extract,
     ingest,
     precheck,
+    prerepair,
     prose,
     query_rewrite,
     repair,
@@ -39,6 +40,7 @@ def default_nodes(flags: PipelineFlags | None = None, llm: LLM | None = None) ->
     flags = flags or PipelineFlags()
     return {
         "ingest": ingest.ingest,
+        "prerepair": prerepair.make_prerepair(flags),
         "extract": extract.extract,
         "resolve_versions": resolve_versions.resolve_versions,
         "precheck": precheck.make_precheck(flags),
@@ -90,7 +92,8 @@ def build_graph(
 
     g.add_edge(START, "ingest")
     for a, b in [
-        ("ingest", "extract"),
+        ("ingest", "prerepair"),  # opt-in: add forgotten imports so symbols can be seen
+        ("prerepair", "extract"),
         ("extract", "resolve_versions"),
         ("resolve_versions", "precheck"),
         ("precheck", "retrieve"),
