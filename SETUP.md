@@ -48,7 +48,7 @@ run then happens with `--network none`, a read-only filesystem, all capabilities
 ## 4. Build the retrieval corpus
 
 ```bash
-uv run python -m trf.rag.corpus build            # pydantic + pandas
+uv run python -m trf.rag.corpus build            # all registered libraries (pandas, pydantic, NumPy, SQLAlchemy, scikit-learn, Matplotlib, SciPy)
 uv run python -m trf.rag.corpus build pandas     # one library
 uv run python -m trf.rag.corpus build --refresh  # re-download sources
 ```

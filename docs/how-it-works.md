@@ -21,7 +21,7 @@ is on).
 
 | Node | What it does |
 |---|---|
-| `ingest` | Lossless Markdown split into prose and code segments (re-rendering gives back the exact input), language detection, tutorial date inference, version pins from `pip install` lines |
+| `ingest` | Lossless Markdown split into prose and code segments (re-rendering gives back the exact input; `>>>` interpreter sessions are code blocks, handled by `session.py`), language detection, tutorial date inference, version pins from `pip install` lines |
 | `extract` | AST analysis: libraries, imported/used symbols (`pandas.DataFrame.append`, `pydantic.Field(regex)`, `...Config.orm_mode`), install commands, extra third-party packages |
 | `prerepair` | Opt-in. Adds imports a tutorial forgot (`np`, `pd`, `plt`, `List`, ...) before symbols are extracted, found by static analysis |
 | `resolve_versions` | Old version from exact pin, then range pin, then tutorial date (never guessed); target = latest PyPI release within the migration's target major, or a user pin |
@@ -52,6 +52,12 @@ BM25 uses an identifier-aware tokenizer (`parse_obj`, `DataFrame.append` stay wh
 `BAAI/bge-small-en-v1.5` with a numpy store; reranking uses `ms-marco-MiniLM-L-6-v2`; the
 symbol index maps each symbol to the changelog entries that mention it.
 
+Besides the release notes, `rag/sourcemine.py` parses a few library source files (listed in
+`LibraryConfig.source_files`) and turns deprecation decorators, deprecation `warnings.warn` calls,
+alias assignments and `.. deprecated::` / `.. versionchanged::` docstring directives into extra
+chunks, so changes the notes do not mention (a renamed keyword, say) are still retrievable and
+citable. They are indexed like any other chunk (ids `lib:src-<module>-<file>:NNNN`).
+
 ## Sandbox
 
 All generated code runs only in Docker: dependencies are installed at image build time, then every
@@ -74,6 +80,7 @@ make "runs without error" not the only pass criterion.
 .
   pyproject.toml, uv.lock, README.md, SETUP.md
   src/trf/
+    session.py       `>>>` transcripts <-> runnable code
     config.py        env settings, PipelineFlags, LibraryConfig registry
     llm.py           provider-agnostic wrapper (anthropic / openai-compatible / ollama), structured output, disk cache
     state.py         Pydantic models + GraphState
@@ -81,9 +88,9 @@ make "runs without error" not the only pass criterion.
     pypi.py          release metadata for version resolution
     nodes/           ingest, prerepair, extract, resolve_versions, precheck, retrieve, diff, rewrite,
                      sandbox, query_rewrite, repair, dewarn, prose, diagnose, assemble
-    rag/             corpus, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
+    rag/             corpus, sourcemine, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
     sandbox_runner/  Dockerfile + in-container runner
-    eval/            dataset/ (15), dataset_heldout/ (6), dataset_libs/ (12), dataset_prose/ (9),
+    eval/            dataset/ (15), dataset_heldout/ (6), dataset_libs/ (15), dataset_prose/ (9),
                      dataset_defects/ (12, generated), loader, baseline, validate_dataset, prose_check,
                      metrics, run_eval
     api/             FastAPI service + static/index.html (single-file UI)

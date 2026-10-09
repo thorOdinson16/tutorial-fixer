@@ -7,7 +7,7 @@ What it does not do, and what the numbers do not show.
   which is why the eval used a hosted model. Several fixes were found by running the dev and libs
   sets, so those numbers are optimistic; only the held-out set was not tuned on.
 - A change can only be cited if it is in the release notes the corpus holds (the sources start at
-  NumPy 1.17, scikit-learn 0.18, Matplotlib 2.2, SQLAlchemy 1.3, pandas 1.0, pydantic 1.x), and the
+  NumPy 1.17, SciPy 1.2, scikit-learn 0.18, Matplotlib 2.2, SQLAlchemy 1.3, pandas 1.0, pydantic 1.x), and the
   corpus covers each project's own notes, not Stack Overflow answers or third-party docs.
 - Old environments cannot be built for very old pins (NumPy 1.11 on a Python that has wheels for
   it, Matplotlib 1.5): the original-vs-updated output comparison is then skipped and a warning says

@@ -13,13 +13,13 @@ How the evaluation sets were built and validated, what each config means, and th
 | 4 | Sandbox feedback loop (`query_rewrite`) and unresolved handling: implemented and tested with a scripted LLM and sandbox; full ablation needs a real model | done; evaluated as config `5_loop` |
 | 5 | FastAPI service + side-by-side diff UI (`trf.api.main`), tested with a fake runner and checked in headless Chrome | done |
 | 6 | Polish: demo script, limitations, ablation, results | done (single-run results, see caveats) |
-| 7 | Six libraries (NumPy, SQLAlchemy, scikit-learn, Matplotlib added), held-out and library eval sets, `protect_working_blocks`, plain-language diagnoses, `trf-serve`, spend cap | done |
+| 7 | Seven libraries (NumPy, SQLAlchemy, scikit-learn, Matplotlib, SciPy added), held-out and library eval sets, `protect_working_blocks`, plain-language diagnoses, `trf-serve`, spend cap | done |
 | 8 | Defect repair (static import pre-repair, verified import/package repairs, suggested definitions), guarded prose updates and deprecation-warning fixes, with defect and prose eval sets | done (see Results) |
 
 ## Evaluation dataset
 
 `src/trf/eval/dataset/` holds 15 hand-built tutorials (6 Pydantic v1→v2, 8 pandas 1.x→2.x, 1 mixed);
-`dataset_heldout/` 6 more written afterwards, and `dataset_libs/` 12 for NumPy, SQLAlchemy,
+`dataset_heldout/` 6 more written afterwards, and `dataset_libs/` 15 for NumPy, SQLAlchemy,
 scikit-learn and Matplotlib (3 each). Each has four files:
 
 | file | content |

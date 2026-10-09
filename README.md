@@ -16,10 +16,11 @@ change log   [api_change] pandas.DataFrame.append: replaced the removed append w
 
 ## What it does
 
-- **Fixes version rot** for six libraries: pandas 1.x to 2.x, pydantic v1 to v2, NumPy 1.x to 2.x,
-  SQLAlchemy 1.x to 2.x, scikit-learn 0.x to 1.x, Matplotlib 2.x/3.x to the latest.
-  Retrieval over each project's own release notes finds what changed, an LLM makes minimal edits,
+- **Fixes version rot** for seven libraries: pandas 1.x to 2.x, pydantic v1 to v2, NumPy 1.x to 2.x,
+  SQLAlchemy 1.x to 2.x, scikit-learn 0.x to 1.x, Matplotlib 2.x/3.x to the latest, SciPy 1.x to the latest.
+  Retrieval over each project's own release notes (plus deprecations mined from its source) finds what changed, an LLM makes minimal edits,
   and a Docker sandbox runs every block (no network, read-only filesystem except a scratch dir).
+- **Reads `>>>` sessions** (pasted interpreter transcripts) as code, with the output lines kept.
 - **Verifies by execution**, and loops: a block that still fails is analysed from its traceback and
   retried with evidence for the symbol that broke.
 - **Opt-in extras** (on by default in the demo and the web service): leave blocks that already run
@@ -66,12 +67,12 @@ project module, a data file, a database). The numbers and their caveats are in
 | [docs/results.md](docs/results.md) | every evaluation number and caveat |
 | [docs/real-tutorials.md](docs/real-tutorials.md) | runs on real web pages and official docs |
 | [docs/evaluation.md](docs/evaluation.md) | datasets, configs, metrics, how to reproduce |
-| [docs/adding-a-library.md](docs/adding-a-library.md) | add a seventh library |
+| [docs/adding-a-library.md](docs/adding-a-library.md) | add another library |
 | [docs/spend-cap.md](docs/spend-cap.md) | the hard LLM budget |
 | [docs/limitations.md](docs/limitations.md) | what it does not do |
 
 ## Status
 
-Complete and evaluated; 284 tests. Python tutorials only. Every number above is reproducible with
+Complete and evaluated; 298 tests. Python tutorials only. Every number above is reproducible with
 the commands in [docs/evaluation.md](docs/evaluation.md), and the limits are stated in
 [docs/limitations.md](docs/limitations.md).
