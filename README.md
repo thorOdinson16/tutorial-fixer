@@ -9,8 +9,8 @@ Scope: Python tutorials and six libraries, each with its own release-note corpus
 **pydantic** v1 → v2, **NumPy** 1.x → 2.x, **SQLAlchemy** 1.x → 2.x, **scikit-learn** 0.x → 1.x and
 **Matplotlib** 2.x/3.x → latest 3.x. Libraries are pluggable: see [Adding a library](#adding-a-library).
 Beyond version fixes it can also repair defects that are not version rot (forgotten imports and
-packages) and keep the explanation text in step with the code; see
-[Beyond version fixes](#beyond-version-fixes).
+packages), keep the explanation text in step with the code, and fix code that still runs but emits
+deprecation warnings; see [Beyond version fixes](#beyond-version-fixes).
 Input: a Markdown file. Output: updated Markdown plus a change log (what changed, why, source
 links, run status per code block).
 
@@ -30,10 +30,11 @@ flowchart LR
     G -->|failures and loop_count < max_loops| Q[query_rewrite]
     Q -->|a failing block names a library symbol| D
     Q -->|nothing to retry| R
-    R --> PR[prose] --> H[assemble]
+    R --> W[dewarn] --> PR[prose] --> H[assemble]
 ```
 
-`prerepair`, `precheck`, `repair` and `prose` are opt-in stages (no-ops unless their flag is on).
+`prerepair`, `precheck`, `repair`, `dewarn` and `prose` are opt-in stages (no-ops unless their flag
+is on).
 
 `graph.py` is a LangGraph `StateGraph` with a conditional cycle. Every node is a pure-ish function
 (`GraphState` in, state patch out), typed with Pydantic, and unit-testable with a mocked LLM.
@@ -51,6 +52,7 @@ flowchart LR
 | `sandbox` | Builds a cached image with the exact target versions, then runs all blocks in one network-less container with per-block status, traceback, stdout and assertions |
 | `query_rewrite` | Loop only: reads each failing block's traceback and names the library symbol that broke (`'DataFrame' object has no attribute 'append'` -> `pandas.DataFrame.append`, `unexpected keyword argument 'squeeze'` -> `pandas.read_csv(squeeze)`). Deterministic pattern matching, no LLM call. Only symbols still lacking evidence or a verdict are retrieved and diffed again; the diff prompt gets the observed failure. If no symbol can be named the block stays failing and ends `unresolved` |
 | `repair` | Opt-in (`repair_defects`). Fixes missing packages and other defects that are not version rot, verifying each fix in the sandbox and reverting the ones that do not remove their error; drafts suggestions for undefined names |
+| `dewarn` | Opt-in (`fix_warnings`). Treats a block that runs but emits a deprecation warning as a soft failure and sends it through retrieve, diff and rewrite; keeps the edit only if the block still runs with identical output, the warning is gone and no other block regressed |
 | `prose` | Opt-in (`update_prose`). Sentence-level, guarded edits of text that mentions changed APIs or old versions (see Beyond version fixes) |
 | `assemble` | Final Markdown + change log. Blocks still failing become `unresolved` with their last error; never reported as passing |
 
@@ -98,7 +100,7 @@ make "runs without error" not the only pass criterion.
     graph.py         LangGraph wiring
     pypi.py          release metadata for version resolution
     nodes/           ingest, prerepair, extract, resolve_versions, precheck, retrieve, diff, rewrite,
-                     sandbox, query_rewrite, repair, prose, diagnose, assemble
+                     sandbox, query_rewrite, repair, dewarn, prose, diagnose, assemble
     rag/             corpus, chunking, bm25, dense, hybrid (RRF), rerank, symbol_index, pipeline
     sandbox_runner/  Dockerfile + in-container runner
     eval/            dataset/ (15), dataset_heldout/ (6), dataset_libs/ (12), dataset_prose/ (9),
@@ -121,7 +123,7 @@ make "runs without error" not the only pass criterion.
 | 5 | FastAPI service + side-by-side diff UI (`trf.api.main`), tested with a fake runner and checked in headless Chrome | done |
 | 6 | Polish: demo script, limitations, ablation, results | done (single-run results, see caveats) |
 | 7 | Six libraries (NumPy, SQLAlchemy, scikit-learn, Matplotlib added), held-out and library eval sets, `protect_working_blocks`, plain-language diagnoses, `trf-serve`, spend cap | done |
-| 8 | Defect repair (static import pre-repair, verified import/package repairs, suggested definitions) and guarded prose updates, with defect and prose eval sets | done (see Results) |
+| 8 | Defect repair (static import pre-repair, verified import/package repairs, suggested definitions), guarded prose updates and deprecation-warning fixes, with defect and prose eval sets | done (see Results) |
 
 ### Evaluation dataset
 
@@ -157,7 +159,9 @@ All 33 pass both checks (`--dataset-dir` selects a set). Verdict labels: `rename
 | `6_protect` | `5_loop` + never edit a block that already runs (opt-in) |
 | `7_repair` | `6_protect` + defect repair (forgotten imports and packages) |
 | `8_prose` | `6_protect` + prose updates |
-| `9_all` | `6_protect` + both |
+| `9_all` | `6_protect` + repair + prose |
+| `10_warnings` | `6_protect` + warning fixes |
+| `11_everything` | `6_protect` + repair + prose + warning fixes |
 
 Metrics (`trf/eval/metrics.py`): block and tutorial **pass rate** (primary; assertions included),
 symbol-level **diff accuracy** against the hand labels, **minimal-edit** ratio (original lines the
@@ -245,6 +249,20 @@ removed (there is no release note to cite). A block that already runs is never t
   untouched sentence stay byte-for-byte identical;
 - each applied edit is listed in the change log and the UI with its reason and the symbol or
   version that justified it.
+
+**Warning fixes** (`fix_warnings`) cover code that still runs but warns. The sandbox records every
+warning a block emits (category, message, line). A deprecation warning is tied to the library
+symbol the block really uses (`applymap` in "DataFrame.applymap has been deprecated"), and the block
+is then treated as a soft failure: release notes are retrieved for that symbol (with the warning text
+as a second query), diffed and rewritten like any other fix, so every edit is cited. The edit is
+kept only if, in a verification run, (a) the block still runs, (b) it prints exactly what it printed
+before, (c) that warning is gone, and (d) no other block regressed; otherwise the whole batch is
+reverted. A block that runs but warns is not "protected" while this mode is on.
+
+Security-flavoured warnings (insecure or unverified requests, certificates) are listed first in the
+change log's "Warnings still emitted" section and are changed only if a cited fix verifies the same
+way; the tool never guesses at a security fix. Deprecation warnings it cannot tie to a symbol are
+reported, not touched.
 
 ## Results
 
@@ -356,6 +374,21 @@ because several edits the metric called wrong were right (a whole sentence versu
 clause) and some were better than the reference. Misses are mostly sentences whose wording changes
 more than the code change implies.
 
+### Warning fixes
+
+Pooled over the 33 evaluation tutorials (`runs/*/results.md`, "blocks still warning"):
+
+| config | block pass | tutorials fully passing | blocks that still warn |
+|---|---|---|---|
+| `5_loop` | 93% | 24 of 33 | 9 |
+| `6_protect` | 93% | 24 of 33 | 18 (protected blocks are never edited) |
+| `10_warnings` | 93% | 24 of 33 | 4 |
+
+Pass rates, tutorial counts and diff accuracy are identical across the three (the mode cannot make a
+block stop running or change its output: such an edit is reverted), and 14 of the 18 warning blocks
+that `6_protect` leaves alone are fixed. Hand references do not list warnings, so "warning gone, same
+output, still runs" is checked mechanically in the sandbox, not against a reference.
+
 ### Twenty real tutorials
 
 Web pages (pandas, NumPy, SQLAlchemy, FastAPI/pydantic) and eight chapters of the 2016 *Python Data
@@ -386,6 +419,24 @@ a missing package on four pages) and 25 prose edits were applied on five pages, 
 "`append` -> `concat`" with the sentences that describe it; nothing was edited on the pages where
 no code changed. I read the prose edits of three pages and they agreed with the code, but there are
 no hand references for real pages, so this is a read-through, not a score.
+
+The first six pages (pandas x4, FastAPI x2), with every mode on, `scripts/demo.py` defaults:
+
+| tutorial | blocks | untouched | after |
+|---|---|---|---|
+| pandas add-row snippets | 3 | 0 | 2 |
+| pandas add-row guide | 12 | 8 | 11 |
+| pandas tutorial (notebook) | 161 | 149 | 155 |
+| pandas for beginners | 52 | 45 | 47 |
+| FastAPI + pydantic schemas | 8 | 3 | 5 |
+| FastAPI project tutorial | 36 | 21 | 26 |
+| **total** | **272** | **226** | **246** |
+
+Two things this run taught: a static import guess can be wrong (the FastAPI page's `Path` is
+`fastapi.Path`; the import is now taken from the tutorial's own text first, anywhere, including
+prose, and a guess is labelled "assumed" in the change log), and several "undefined names" in the
+notebook-style pages (`Index([...])`, `array([...])`) are printed output pasted into code cells, which
+the change log now says.
 
 ## Reproducing the evaluation
 
@@ -480,6 +531,8 @@ a change that predates them (Matplotlib before 2.2, say) cannot be cited.
 - Prose is edited only with `update_prose` on, one sentence at a time and only where it mentions a
   changed API or an old version; output blocks (printed results shown in the text) are not
   regenerated, and prose that describes behaviour rather than names a symbol is not found.
+- Security warnings are reported, not repaired, unless a cited fix verifies; warnings the tool cannot
+  tie to a symbol the block uses are reported only.
 - Defect repair covers forgotten imports and packages. It does not invent data: an undefined
   variable stays a suggestion unless placeholders are explicitly enabled, and a tutorial that needs
   its author's project, a data file or a server stays unresolved.
