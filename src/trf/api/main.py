@@ -360,6 +360,10 @@ MODE_LABELS = {
 }
 
 
+# the usual import aliases, for pages whose imports were left out of the snippets
+ALIASES = {"pandas": ("pd",), "numpy": ("np",), "matplotlib": ("plt",)}
+
+
 def describe(markdown: str, title: str) -> Preview:
     """What a run would involve, for the page to show before anything is spent."""
     from trf.config import LIBRARIES
@@ -371,6 +375,7 @@ def describe(markdown: str, title: str) -> Preview:
         name
         for name in LIBRARIES
         if re.search(rf"^\s*(?:import|from)\s+{re.escape(name)}\b", code, re.M)
+        or any(re.search(rf"\b{a}\.", code) for a in ALIASES.get(name, ()))
     ]
     return Preview(
         title=title,
