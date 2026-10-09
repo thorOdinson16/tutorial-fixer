@@ -274,6 +274,7 @@ def _default_runner(state: GraphState, on_stage: Callable[[str], None] | None = 
         ("TRF_PROTECT_WORKING_BLOCKS", "protect_working_blocks"),
         ("TRF_REPAIR_DEFECTS", "repair_defects"),
         ("TRF_UPDATE_PROSE", "update_prose"),
+        ("TRF_FIX_WARNINGS", "fix_warnings"),
     ):
         if env not in os.environ:
             flags = flags.model_copy(update={field: True})

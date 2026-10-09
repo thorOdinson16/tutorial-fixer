@@ -58,6 +58,13 @@ def main() -> None:
         help="also update sentences that mention changed APIs or old versions "
         "(--no-prose to switch off)",
     )
+    ap.add_argument(
+        "--warnings",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="also fix code that runs but emits deprecation warnings, verified in the sandbox "
+        "(--no-warnings to switch off)",
+    )
     ap.add_argument("--out", default="runs/demo")
     args = ap.parse_args()
 
@@ -71,6 +78,7 @@ def main() -> None:
             "protect_working_blocks": args.protect or flags.protect_working_blocks,
             "repair_defects": args.repair or flags.repair_defects,
             "update_prose": args.prose or flags.update_prose,
+            "fix_warnings": args.warnings or flags.fix_warnings,
         }
     )
     final = run_graph(state, flags=flags, llm=llm)

@@ -105,6 +105,11 @@ def make_precheck(
         except SystemExit as e:  # old version unknown
             warnings.append(f"precheck: old environment not run ({e})")
         protected, drift = compare(target, old)
+        if f.fix_warnings:  # a block that runs but warns is exactly what that mode may edit
+            from trf.nodes.dewarn import warned_blocks
+
+            warned = warned_blocks(target.run_results)
+            protected = [b for b in protected if b not in warned]
         if old is not None and not any(r.ok for r in old.run_results):
             warnings.append("precheck: the original does not run in its old environment either")
         if drift:

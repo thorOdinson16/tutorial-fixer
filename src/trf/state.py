@@ -103,6 +103,7 @@ class RunResult(BaseModel):
     traceback: str | None = None
     timed_out: bool = False
     passed_assertions: bool | None = None  # None = no assertions defined
+    warnings: list[dict[str, str]] = Field(default_factory=list)  # category, message, line
 
     @property
     def ok(self) -> bool:
@@ -153,6 +154,7 @@ class GraphState(BaseModel):
     verdicts: list[DiffVerdict] = Field(default_factory=list)
     run_results: list[RunResult] = Field(default_factory=list)
     change_log: list[ChangeLogEntry] = Field(default_factory=list)
+    warning_report: list[dict[str, str]] = Field(default_factory=list)  # warnings still emitted
     prose_edits: list[ProseEdit] = Field(default_factory=list)
     suggestions: dict[str, str] = Field(default_factory=dict)  # block id -> suggested definition
     protected_blocks: list[str] = Field(default_factory=list)  # work already; rewrite skips them

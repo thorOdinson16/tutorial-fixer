@@ -143,7 +143,7 @@ def run_offline(code: str, settings: SandboxSettings | None = None) -> dict:
 
 
 _DRIVER = """\
-import sys as _trf_sys, traceback as _trf_tb
+import sys as _trf_sys, traceback as _trf_tb, warnings as _trf_w, json as _trf_json
 
 _trf_units = {units!r}
 
@@ -155,6 +155,9 @@ def _trf_main():
             continue
         for stream in (_trf_sys.stdout, _trf_sys.stderr):
             print("<<<TRF:BEGIN:" + uid + ">>>", file=stream, flush=True)
+        _trf_cm = _trf_w.catch_warnings(record=True)
+        _trf_caught = _trf_cm.__enter__()
+        _trf_w.simplefilter("always")
         try:
             exec(compile(src, "<block:" + uid + ">", "exec"), globals())
             ok = True
@@ -166,6 +169,16 @@ def _trf_main():
             ok = False
             tb = e.__traceback__.tb_next if e.__traceback__ else None
             _trf_tb.print_exception(type(e), e, tb)
+        _trf_cm.__exit__(None, None, None)
+        _trf_seen = set()
+        for _w in _trf_caught[:200]:
+            _rec = (_w.category.__name__, str(_w.message)[:300], _w.lineno)
+            if _rec in _trf_seen or len(_trf_seen) >= 20:
+                continue
+            _trf_seen.add(_rec)
+            print("<<<TRF:WARN>>>" + _trf_json.dumps(
+                {{"category": _rec[0], "message": _rec[1], "line": str(_rec[2])}}
+            ), file=_trf_sys.stderr, flush=True)
         if not ok:
             print("<<<TRF:FAIL>>>", file=_trf_sys.stderr, flush=True)
         _trf_sys.stdout.flush()
@@ -198,6 +211,21 @@ def split_by_unit(text: str) -> dict[str, str]:
     return out
 
 
+_WARN_LINE = re.compile(r"^<<<TRF:WARN>>>(?P<json>.*)$", re.MULTILINE)
+
+
+def split_warnings(stderr_unit: str) -> tuple[str, list[dict[str, str]]]:
+    """(stderr without the warning marker lines, the warnings recorded for this unit)."""
+    found: list[dict[str, str]] = []
+    for m in _WARN_LINE.finditer(stderr_unit):
+        try:
+            d = json.loads(m["json"])
+            found.append({k: str(d.get(k, "")) for k in ("category", "message", "line")})
+        except ValueError:
+            continue
+    return _WARN_LINE.sub("", stderr_unit).strip("\r\n"), found
+
+
 _EXC_LINE = re.compile(r"^[A-Za-z_][\w.]*(?:Error|Exception|Exit|Warning|Interrupt)?:")
 
 
@@ -226,7 +254,7 @@ def interpret(
     for b in blocks:
         if b.id not in outs:
             continue  # never started (timeout or crash before reaching it): status unchanged
-        err = errs.get(b.id, "")
+        err, warned = split_warnings(errs.get(b.id, ""))
         failed = "<<<TRF:FAIL>>>" in err
         err = err.replace("<<<TRF:FAIL>>>", "").strip()
         stdout = outs[b.id][:MAX_BLOCK_OUT]
@@ -260,6 +288,7 @@ def interpret(
                 stderr=err[:MAX_BLOCK_OUT],
                 traceback=err if failed and "Traceback" in err else None,
                 timed_out=timed_out,
+                warnings=warned,
                 passed_assertions=None if not asserted else problem is None,
             )
         )

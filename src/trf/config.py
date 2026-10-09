@@ -72,6 +72,7 @@ class PipelineFlags(BaseModel):
     repair_defects: bool = False  # opt-in: fix missing imports/packages after the version loop
     apply_placeholders: bool = False  # opt-in: insert LLM-drafted definitions (else suggest only)
     update_prose: bool = False  # opt-in: edit sentences that mention changed APIs / versions
+    fix_warnings: bool = False  # opt-in: fix code that runs but emits deprecation warnings
 
     @property
     def retrieval_enabled(self) -> bool:

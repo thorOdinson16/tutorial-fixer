@@ -54,6 +54,23 @@ def _prose_section(state: GraphState) -> list[str]:
     return [*lines, ""]
 
 
+def _warning_section(state: GraphState) -> list[str]:
+    if not state.warning_report:
+        return []
+    lines = [
+        "## Warnings still emitted",
+        "",
+        "These blocks run, but still emit a warning. Security-related ones come first; none was "
+        "changed without a cited fix that verified in the sandbox.",
+        "",
+    ]
+    ordered = sorted(state.warning_report, key=lambda w: (w["kind"] != "security", w["block_id"]))
+    for w in ordered:
+        tag = "SECURITY" if w["kind"] == "security" else "deprecation"
+        lines.append(f"- **{w['block_id']}** [{tag}] {w['category']}: {w['message'][:200]}")
+    return [*lines, ""]
+
+
 def _suggestion_section(state: GraphState) -> list[str]:
     if not state.suggestions:
         return []
@@ -168,6 +185,7 @@ def build_change_log(state: GraphState, blocks: list[CodeBlock]) -> str:
                 lines.append(f"  - Likely cause: {d.text}.")
         lines.append("")
     lines += _suggestion_section(state)
+    lines += _warning_section(state)
     if state.warnings:
         lines += ["## Pipeline warnings", ""] + [f"- {w}" for w in state.warnings] + [""]
     return "\n".join(lines)

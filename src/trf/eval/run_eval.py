@@ -38,6 +38,7 @@ from trf.eval.loader import (
 from trf.eval.prose_check import load_edits
 from trf.graph import run_graph
 from trf.llm import LLM, BudgetExceeded
+from trf.nodes.dewarn import warned_blocks
 from trf.state import GraphState
 
 OFF = {f: False for f in PipelineFlags.model_fields}
@@ -72,6 +73,14 @@ _P = CONFIGS["6_protect"]
 CONFIGS["7_repair"] = _P.model_copy(update={"repair_defects": True})
 CONFIGS["8_prose"] = _P.model_copy(update={"update_prose": True})
 CONFIGS["9_all"] = _P.model_copy(update={"repair_defects": True, "update_prose": True})
+CONFIGS["10_warnings"] = _P.model_copy(update={"fix_warnings": True})
+CONFIGS["11_everything"] = _P.model_copy(
+    update={
+        "repair_defects": True,
+        "update_prose": True,
+        "fix_warnings": True,
+    }
+)
 DEFAULT_CONFIGS = ["0_original", "1_llm_only", "2_dense", "3_hybrid", "4_full", "5_loop"]
 
 GraphRunner = Callable[..., GraphState]
@@ -172,6 +181,7 @@ def run_one(
             "prose": M.prose_score(expected_prose, final.prose_edits) if expected_prose else None,
             "defect_fixes": sum(e.kind == "defect_fix" for e in final.change_log),
             "prose_edits": len(final.prose_edits),
+            "warned_blocks": len(warned_blocks(final.run_results)),
         },
     }  # fmt: skip
     return log, final.output_md, final.change_log_md
@@ -266,15 +276,17 @@ def results_markdown(by_config: dict[str, list[dict]]) -> str:
         prose = [x["metrics"]["prose"] for x in logs if x["metrics"].get("prose")]
         fixes = sum(x["metrics"].get("defect_fixes", 0) for x in logs)
         applied = sum(x["metrics"].get("prose_edits", 0) for x in logs)
-        if prose or fixes or applied:
+        warned = sum(x["metrics"].get("warned_blocks", 0) for x in logs)
+        if prose or fixes or applied or warned:
             exp = sum(p["expected"] for p in prose)
             ok = sum(p["correct"] for p in prose)
             unneeded = sum(p["unneeded"] for p in prose)
-            extra.append(f"| {c} | {fixes} | {applied} | {exp} | {ok} | {unneeded} |")
+            extra.append(f"| {c} | {fixes} | {applied} | {exp} | {ok} | {unneeded} | {warned} |")
     if extra:
         lines += ["", "## Defect repairs and prose edits", "",
-                  "| config | defect fixes | prose edits applied | expected | correct | unneeded |",
-                  "|---|---|---|---|---|---|", *extra]  # fmt: skip
+                  "| config | defect fixes | prose edits applied | expected | correct | unneeded "
+                  "| blocks still warning |",
+                  "|---|---|---|---|---|---|---|", *extra]  # fmt: skip
     lines += ["", "`!` = the run crashed (blocks counted as unresolved). Metric definitions: "
               "see `trf/eval/metrics.py`.", ""]  # fmt: skip
     return "\n".join(lines)

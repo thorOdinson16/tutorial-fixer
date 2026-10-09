@@ -3,7 +3,7 @@
 ingest -> extract -> resolve_versions -> precheck (opt-in) -> retrieve -> diff -> rewrite ->
 sandbox, then sandbox -> assemble (all pass / cap hit) or sandbox -> query_rewrite -> retrieve
 (failures, under cap); query_rewrite -> repair when no failing block names a library symbol.
-Every path to the end passes repair -> prose (opt-in stages) -> assemble.
+Every path to the end passes repair -> dewarn -> prose (opt-in stages) -> assemble.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from trf.config import PipelineFlags
 from trf.llm import LLM
 from trf.nodes import (
     assemble,
+    dewarn,
     diff,
     extract,
     ingest,
@@ -38,18 +39,30 @@ Node = Callable[[GraphState], dict]
 def default_nodes(flags: PipelineFlags | None = None, llm: LLM | None = None) -> dict[str, Node]:
     """The real nodes, configured by `flags`. LLM/corpus are only loaded when a node needs them."""
     flags = flags or PipelineFlags()
+    retrieve_node = retrieve.make_retrieve(flags=flags)
+    diff_node = diff.make_diff(llm, flags)
+    rewrite_node = rewrite.make_rewrite(llm, flags)
     return {
         "ingest": ingest.ingest,
         "prerepair": prerepair.make_prerepair(flags),
         "extract": extract.extract,
         "resolve_versions": resolve_versions.resolve_versions,
         "precheck": precheck.make_precheck(flags),
-        "retrieve": retrieve.make_retrieve(flags=flags),
-        "diff": diff.make_diff(llm, flags),
-        "rewrite": rewrite.make_rewrite(llm, flags),
+        "retrieve": retrieve_node,
+        "diff": diff_node,
+        "rewrite": rewrite_node,
         "sandbox": sandbox.sandbox,
         "query_rewrite": query_rewrite.query_rewrite,
         "repair": repair.make_repair(flags, llm),
+        "dewarn": dewarn.make_dewarn(
+            flags,
+            {
+                "retrieve": retrieve_node,
+                "diff": diff_node,
+                "rewrite": rewrite_node,
+                "sandbox": sandbox.sandbox,
+            },
+        ),
         "prose": prose.make_prose(llm, flags),
         "assemble": assemble.assemble,
     }
@@ -112,7 +125,8 @@ def build_graph(
         lambda s: route_after_query_rewrite(s, flags),
         {"retrieve": "retrieve", "assemble": "repair"},
     )
-    g.add_edge("repair", "prose")  # both are no-ops unless their flags are on
+    g.add_edge("repair", "dewarn")  # opt-in stages: no-ops unless their flags are on
+    g.add_edge("dewarn", "prose")
     g.add_edge("prose", "assemble")
     g.add_edge("assemble", END)
     return g.compile()
