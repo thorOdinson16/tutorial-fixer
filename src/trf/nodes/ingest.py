@@ -11,10 +11,12 @@ import re
 import shlex
 from datetime import date
 
+from trf.session import new_block
 from trf.state import CodeBlock, GraphState, Segment
 
 _FENCE_OPEN = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 PY_LANGS = {"python", "py", "python3", "py3"}
+_NOT_SESSIONS = {"bash", "sh", "shell", "zsh", "console", "text", "json", "yaml", "toml", "sql"}
 _MONTHS = {m: i for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)}
 
 
@@ -143,11 +145,13 @@ def extract_pins(md: str) -> dict[str, str]:
 
 def ingest(state: GraphState) -> dict:
     segs = split_segments(state.tutorial_md)
-    blocks = [
-        CodeBlock.new(s.block_id, s.text, detect_lang(s.fence_open.strip().lstrip("`~"), s.text))
-        for s in segs
-        if s.kind == "code" and s.block_id
-    ]
+    blocks = []
+    for s in segs:
+        if s.kind != "code" or not s.block_id:
+            continue
+        info = s.fence_open.strip().lstrip("`~")
+        session = new_block(s.block_id, s.text) if _info_lang(info) not in _NOT_SESSIONS else None
+        blocks.append(session or CodeBlock.new(s.block_id, s.text, detect_lang(info, s.text)))
     prose = "".join(s.text for s in segs if s.kind == "prose")
     return {
         "segments": segs,

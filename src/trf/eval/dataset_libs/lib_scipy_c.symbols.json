@@ -1,0 +1,6 @@
+{
+  "scipy.linalg.pinv2": "removed",
+  "scipy.sparse.linalg.cg": "signature_changed",
+  "scipy.stats.mode": "behavior_changed",
+  "scipy.stats.itemfreq": "removed"
+}

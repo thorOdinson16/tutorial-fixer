@@ -15,6 +15,13 @@ DocType = Literal["docs", "changelog", "migration", "release"]
 VerdictKind = Literal["unchanged", "renamed", "signature_changed", "removed", "behavior_changed"]
 
 
+class SessionStmt(BaseModel):
+    """One statement of an interactive session (`>>> code`) and the output lines under it."""
+
+    code: list[str]
+    output: list[str] = Field(default_factory=list)
+
+
 class CodeBlock(BaseModel):
     id: str
     lang: str = "python"
@@ -22,6 +29,7 @@ class CodeBlock(BaseModel):
     original_source: str
     status: BlockStatus = "pending"
     last_error: str | None = None
+    session: list[SessionStmt] | None = None  # set when the fence was a `>>>` transcript
 
     @classmethod
     def new(cls, id: str, source: str, lang: str = "python") -> CodeBlock:

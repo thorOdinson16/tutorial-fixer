@@ -141,7 +141,15 @@ def added_digits(state: GraphState) -> set[str]:
 
 
 def _mentions_symbol(sentence: str, tail: str) -> bool:
-    return bool(re.search(rf"(?<![\w]){re.escape(tail)}(?![\w])", sentence))
+    """Does the sentence name the API `tail` as CODE (backticks, `name(`, or `.name`)?
+
+    A plain English word is not a mention: "the product of the entries" is not `np.product`.
+    """
+    word = rf"(?<![\w]){re.escape(tail)}(?![\w])"
+    in_backticks = any(re.search(word, span) for span in re.findall(r"`([^`]+)`", sentence))
+    called = re.search(rf"(?<![\w]){re.escape(tail)}" + r"\s*\(", sentence)
+    dotted = re.search(rf"[\w)\]]\.{re.escape(tail)}(?![\w])", sentence)
+    return bool(in_backticks or called or dotted)
 
 
 def _mentions_version(sentence: str, libraries: list[str]) -> bool:

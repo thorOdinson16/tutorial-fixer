@@ -195,3 +195,15 @@ def test_a_version_sentence_is_allowed_to_change_even_if_the_model_names_another
     new = "Pick the `seaborn-v0_8` style, which Matplotlib 3.11 ships built in."
     assert validate_edit(old, new, "version", {"3", "11", "0", "8"}, {}) is None
     assert "numbers" in validate_edit(old, new, "version", {"3", "11"}, {})
+
+
+def test_a_plain_english_word_is_not_a_mention_of_the_api():
+    from trf.nodes.prose import _mentions_symbol
+
+    assert not _mentions_symbol("The product of the entries is shown last.", "product")
+    assert not _mentions_symbol("We append more text later.", "append")
+    assert _mentions_symbol("The `product` of the entries is shown.", "product")
+    assert _mentions_symbol("Use np.product to multiply.", "product")
+    assert _mentions_symbol("Call product() on the array.", "product")
+    assert _mentions_symbol("The DataFrame.append method adds rows.", "append")
+    assert _mentions_symbol("Use `df.append(row)` here.", "append")

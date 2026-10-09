@@ -1,0 +1,6 @@
+{
+  "scipy.integrate.simps": "removed",
+  "scipy.integrate.trapz": "removed",
+  "scipy.integrate.cumtrapz": "removed",
+  "scipy.interpolate.interp2d": "removed"
+}

@@ -10,6 +10,7 @@ from __future__ import annotations
 import difflib
 
 from trf.nodes.diagnose import diagnose
+from trf.session import plain_fence, render_body
 from trf.state import ChangeLogEntry, CodeBlock, GraphState, Segment
 
 STATUS_LABEL = {
@@ -27,7 +28,15 @@ def render(segments: list[Segment], blocks: dict[str, CodeBlock]) -> str:
             out.append(s.text)
         else:
             b = blocks.get(s.block_id or "")
-            out.append(s.fence_open + (b.source if b else s.text) + s.fence_close)
+            if b is None:
+                out.append(s.fence_open + s.text + s.fence_close)
+            elif b.session:  # a `>>>` transcript: keep it a transcript where it can be
+                body, still = render_body(s.text, b)
+                out.append(
+                    (s.fence_open if still else plain_fence(s.fence_open)) + body + s.fence_close
+                )
+            else:
+                out.append(s.fence_open + b.source + s.fence_close)
     return "".join(out)
 
 
