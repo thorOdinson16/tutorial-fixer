@@ -460,8 +460,8 @@ Seven of the 25 links had nothing to run (landing pages, an example page with ou
 pydantic pages whose code is drawn by JavaScript so the download contains none) and one URL (pandas
 1.3 tutorials index) is a 404. 33 prose edits were applied and 124 cited API edits, 17 version pins
 and 4 defect fixes were made. Largest gains: the SQLAlchemy 1.3 core tutorial 35 to 98 of 105 blocks,
-the NumPy 1.17 release notes page 2 to 33 of 42, the NumPy beginners guide 122 to 122 of 124 after
-the sandbox could write files.
+the NumPy 1.17 release notes page 2 to 33 of 42, the NumPy beginners guide runs 122 of 124 blocks (115 before the sandbox could write
+files, which is a limit of my sandbox, not of NumPy).
 
 Why the rest still fails: about 160 of the ~190 failing blocks are downstream of just 13 root blocks
 (a block fails, everything that needs its names fails after it). The roots are: an object defined
