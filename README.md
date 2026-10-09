@@ -11,9 +11,10 @@ Scope: Python tutorials and six libraries, each with its own release-note corpus
 Input: a Markdown file. Output: updated Markdown plus a change log (what changed, why, source
 links, run status per code block).
 
-**Status:** all pipeline code, the eval harness, the feedback loop and the API/UI are built and
-tested (171 tests, a mocked LLM and sandbox where needed). The end-to-end eval (configs 0–5, 15 tutorials, `gpt-6-luna`) has run once; see
-[Results](#results) for the numbers and, as importantly, what they do not show.
+**Status:** complete and evaluated. The pipeline, feedback loop, six-library corpora, eval harness
+and web UI are built and tested (229 tests, a mocked LLM and sandbox where needed). On 33 evaluation
+tutorials the full pipeline runs 93% of code blocks (36% untouched); on 20 real tutorials 87% (75%
+untouched). See [Results](#results) for the numbers and, as importantly, what they do not show.
 Setup instructions are in [SETUP.md](SETUP.md).
 
 ## How it works
@@ -104,12 +105,14 @@ make "runs without error" not the only pass criterion.
 | 3 | diff, rewrite, assemble (implemented and unit-tested); 15-tutorial eval dataset with hand-fixed references; eval runner | done; evaluated (see Results) |
 | 4 | Sandbox feedback loop (`query_rewrite`) and unresolved handling: implemented and tested with a scripted LLM and sandbox; full ablation needs a real model | done; evaluated as config `5_loop` |
 | 5 | FastAPI service + side-by-side diff UI (`trf.api.main`), tested with a fake runner and checked in headless Chrome | done |
-| 6 | Polish: demo script, limitations, ablation instructions done; ablation **results** need the real eval | done (single-run results, see caveats) |
+| 6 | Polish: demo script, limitations, ablation, results | done (single-run results, see caveats) |
+| 7 | Six libraries (NumPy, SQLAlchemy, scikit-learn, Matplotlib added), held-out and library eval sets, `protect_working_blocks`, plain-language diagnoses, `trf-serve`, spend cap | done |
 
 ### Evaluation dataset
 
-`src/trf/eval/dataset/` holds 15 hand-built tutorials (6 Pydantic v1→v2, 8 pandas 1.x→2.x, 1 mixed).
-Each has four files:
+`src/trf/eval/dataset/` holds 15 hand-built tutorials (6 Pydantic v1→v2, 8 pandas 1.x→2.x, 1 mixed);
+`dataset_heldout/` 6 more written afterwards, and `dataset_libs/` 12 for NumPy, SQLAlchemy,
+scikit-learn and Matplotlib (3 each). Each has four files:
 
 | file | content |
 |---|---|
@@ -121,7 +124,7 @@ Each has four files:
 `uv run python -m trf.eval.validate_dataset` proves the dataset is sound: every original must pass
 in its original environment (Python 3.10, pinned versions) and every reference must pass in the target
 environment (Python 3.12, pandas 2.3.3 / pydantic 2.13.5), with identical prose and block structure.
-All 15 pass both checks. Verdict labels: `renamed` (same thing, new name), `signature_changed`
+All 33 pass both checks (`--dataset-dir` selects a set). Verdict labels: `renamed` (same thing, new name), `signature_changed`
 (argument / keyword / config key), `removed`, `behavior_changed` (same API, different semantics).
 
 ### Eval configs and metrics
@@ -136,6 +139,7 @@ All 15 pass both checks. Verdict labels: `renamed` (same thing, new name), `sign
 | `3_hybrid` | + BM25 fused with RRF |
 | `4_full` | + cross-encoder rerank, version boost, symbol index |
 | `5_loop` | + sandbox feedback loop (Phase 4) |
+| `6_protect` | `5_loop` + never edit a block that already runs (opt-in) |
 
 Metrics (`trf/eval/metrics.py`): block and tutorial **pass rate** (primary; assertions included),
 symbol-level **diff accuracy** against the hand labels, **minimal-edit** ratio (original lines the
@@ -193,16 +197,114 @@ code side by side, a status badge, the error of any unresolved block, and every 
 cited source links (uncited `llm_prior` edits are labelled as such). API: `POST /api/jobs`,
 `GET /api/jobs/{id}`, `GET /api/jobs/{id}/download`. Jobs are held in memory and run one at a time.
 
+## Results
+
+Model `gpt-6-luna` via the OpenAI API, temperature 0, Docker sandbox, max 4 loops, one run per
+configuration. A block passes only if it ran in the target environment and met its assertions.
+Three evaluation sets, 33 tutorials in all (181 python blocks):
+
+| set | tutorials | libraries | how it was made |
+|---|---|---|---|
+| dev | 15 | pandas, pydantic | hand-written; used while building the system |
+| held-out | 6 | pandas, pydantic | written later around APIs the dev set does not use |
+| libs | 12 | NumPy, SQLAlchemy, scikit-learn, Matplotlib (3 each) | written by subagents from a spec |
+
+Every tutorial is validated in Docker (`validate_dataset --dataset-dir ...`): the original passes in
+its old environment, the hand-fixed reference passes in the target one, and several blocks of the
+original really break there.
+
+**Block pass rate / tutorials fully passing**
+
+| config | dev (15) | held-out (6) | libs (12) | all 33 |
+|---|---|---|---|---|
+| `0_original` (untouched) | 41% / 1 | 29% / 0 | 32% / 0 | 36% / 1 |
+| `1_llm_only` (no retrieval) | 87% / 7 | 97% / 5 | 97% / 10 | 92% / 22 |
+| `2_dense` | 67% / 4 | 76% / 0 | 63% / 1 | 67% / 5 |
+| `3_hybrid` | 71% / 5 | 82% / 2 | 71% / 3 | 73% / 10 |
+| `4_full` | 77% / 5 | 94% / 4 | 77% / 6 | 80% / 15 |
+| `5_loop` (+ sandbox loop) | 88% / 8 | 97% / 5 | 98% / 11 | 93% / 24 |
+| `6_protect` (+ keep working blocks) | 88% / 8 | 97% / 5 | 98% / 11 | 93% / 24 |
+
+Reading it:
+
+- **The pipeline fixes most of the rot**: 36% of blocks run untouched, 93% after `5_loop`.
+- **Every retrieval stage helps, and the loop helps most.** Dense < hybrid < full < loop on all three
+  sets. Without the loop, a block is edited only when a cited verdict covers it, so a missed verdict
+  leaves it broken (80% for `4_full`); the loop finds the symbol from the sandbox error, retrieves
+  with the error message, and closes the gap.
+- **`5_loop` ties the no-retrieval baseline on pass rate** (93% vs 92%, 24 vs 22 tutorials fully
+  passing), within noise at this sample size. What retrieval adds is **cited, auditable edits**
+  (each change links to the release note that justifies it, `1_llm_only` edits are labelled uncited)
+  and changed-symbol recall of 88-100%.
+- **`6_protect` leaves pass rate unchanged and makes ~12% fewer edits** (169 change-log entries vs
+  192) and ~1.3 fewer LLM calls per tutorial, because it never edits a block that already runs.
+- **Per library (libs set, blocks passing):** NumPy 15/15, scikit-learn 16/16, Matplotlib 18/18,
+  SQLAlchemy 15/16 for `5_loop`, against 14/15, 16/16, 17/18 and 16/16 for `1_llm_only`. Diff
+  accuracy is the weakest metric (57-61%); most misses are behaviour changes with no error.
+
+**Caveats.** One model, one run per config. A block is about 0.5% of the pooled pass rate, so
+differences of a point or two are noise. The dev and libs sets were used to find and fix problems
+(below), so their numbers are optimistic; the held-out set was written after the system was tuned
+and was re-run after every later change (97% throughout), which is the cleaner check. The libs and
+held-out tutorials were written by smaller models from a spec, so they are cleaner and shorter than
+real tutorials.
+
+### What running the real model taught us (all fixed, with tests)
+
+OpenAI's newer models need `max_completion_tokens`; the diff dropped every verdict whose symbol the
+model echoed as `name (kind)`; evidence was clipped before the key sentence; a model adding
+`engine="pyarrow"` to working code; a block broken by the system's own edit was not retried; a
+correct edit was dropped as "unattributed" when the model named no symbol (it is now attributed to
+the verdicts whose symbols appear in the lines it changed); retrieval never found `np.float`
+because notes say `np`, not `numpy` (aliases `np`/`pd`/`plt` are now searched); errors that name no
+function (`tuple indices must be integers... not str` is SQLAlchemy 2 Row access) now map to the API
+behind them; a bad argument value (`'seaborn-white' is not a valid style`) is traced to the call
+that received it; a symbol that still fails after its verdict was applied is re-retrieved with the
+error message as a query, and those chunks go first because the diff stage only shows the top few.
+
+### Protecting blocks that already work (`6_protect`)
+
+Opt-in (`PipelineFlags.protect_working_blocks`, config `6_protect`, on by default in
+`scripts/demo.py` and the web service). A `precheck` stage runs the ORIGINAL tutorial in its target
+environment and in its old environment (on an older Python where the old release has no wheel for
+3.10), and rewrite never edits a block that already runs. When the precheck ran, the change log also
+says which blocks now print different output from what the original printed.
+
+### Twenty real tutorials
+
+Web pages (pandas, NumPy, SQLAlchemy, FastAPI/pydantic) and eight chapters of the 2016 *Python Data
+Science Handbook* (NumPy, Matplotlib, scikit-learn) were fetched, converted to Markdown with a small
+stdlib script and run through `5_loop` with `scripts/demo.py`. No hand-written references and no
+assertions, so "passing" only means the block ran; this is a smoke test, not a score.
+
+| | python blocks | run as-is | run after the pipeline |
+|---|---|---|---|
+| 20 real tutorials | 624 | 467 (75%) | 545 (87%) |
+
+Largest gains: a NumPy page 76 to 111 of 117 blocks, a Matplotlib chapter 1 to 15 of 15 and another
+0 to 10 of 10 (the old `seaborn-whitegrid` style names), a scikit-learn chapter 20 to 25 of 32, a
+pandas add-row page 0 to 2 of 3. Output comparison against the original in its old environment: 58 of
+58 comparable blocks matched on the pages where the old environment could be built, apart from one
+`object`-dtype difference that the change log now flags.
+
+What does not improve is mostly not version rot, and the change log says so per block ("Likely
+cause: ..."): a snippet that uses `List` or `Alice` without defining it, imports of the author's own
+project (`app.schemas`, `yourapplication`), a MySQL server, an intentional broadcasting error. Real
+misses remain too: a FastAPI/pydantic docs page (`name = 'Jane Doe'` without an annotation) stays
+at 0 of 7 because the error names no API the corpus can match.
+
 ## Reproducing the evaluation
 
 ```bash
-uv run python -m trf.eval.validate_dataset        # dataset sanity (Docker); passes today
-uv run python -m trf.eval.run_eval                # configs 0-5, resumable, logs in runs/eval/
-uv run python -m trf.eval.run_eval --configs 4_full 5_loop --cases pandas_timeseries --force
+uv run python -m trf.eval.validate_dataset                      # dev set (Docker)
+uv run python -m trf.eval.validate_dataset --dataset-dir src/trf/eval/dataset_heldout
+uv run python -m trf.eval.validate_dataset --dataset-dir src/trf/eval/dataset_libs
+uv run python -m trf.eval.run_eval [--dataset-dir DIR --out runs/DIR]   # resumable; runs/<out>/results.md
+uv run python scripts/check_case.py CASE... [--dataset-dir DIR]   # one case: old env / target env / reference
 ```
 
-`runs/eval/results.md` is regenerated after every case, and `--retry-errors` re-runs cases whose
-log recorded a crash (e.g. a network failure). The numbers are in [Results](#results).
+`--retry-errors` re-runs cases whose log recorded a crash, and a spent budget stops the eval
+cleanly (see Spend cap). Every log records its own billed tokens.
 
 ### How well does `query_rewrite` read real failures?
 
@@ -222,121 +324,6 @@ tutorials fully**, versus 41% of blocks / 1 of 15 for the untouched tutorials. T
 unresolved are errors that name no library symbol (changed validation behaviour, a changed default
 that alters output). This shows the wiring and the error parser work end to end and is an upper
 bound for those parts; it says nothing about how well a real model classifies or rewrites.
-
-## Results
-
-Model `gpt-6-luna` via the OpenAI API, temperature 0, 15 tutorials (the dataset above), Docker
-sandbox, max 4 loops. One run per config. Pass rates count a block as passing only if it ran in the
-target environment and met its assertions.
-
-| config | cases | block pass | tutorial pass | diff acc. | changed recall | verdict exact | unrelated edits | prose edits | unresolved | LLM calls | s/case |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0_original | 15 | 41% | 7% | n/a | n/a | n/a | 0% | 0 | 0% | 0.0 | 1 |
-| 1_llm_only | 15 | 87% | 47% | n/a | n/a | n/a | 1% | 0 | 13% | 5.5 | 42 |
-| 2_dense | 15 | 67% | 27% | 57% | 56% | 29% | 1% | 0 | 33% | 6.5 | 6 |
-| 3_hybrid | 15 | 71% | 33% | 61% | 64% | 43% | 1% | 0 | 29% | 6.6 | 6 |
-| 4_full | 15 | 76% | 33% | 53% | 85% | 55% | 1% | 0 | 24% | 7.5 | 28 |
-| 5_loop | 15 | 88% | 53% | 55% | 88% | 58% | 1% | 0 | 12% | 9.5 | 29 |
-
-Reading it:
-
-- **The pipeline fixes most of the rot.** Untouched tutorials: 41% of blocks, 1 of 15 tutorials.
-  Full pipeline with the loop (`5_loop`): 88% of blocks, 8 of 15 tutorials.
-- **Retrieval alone did not beat the no-retrieval baseline on pass rate.** `1_llm_only` (the model
-  rewriting from its own knowledge, no evidence, edits uncited) reaches 87%; `2_dense`..`4_full`
-  reach 67-76%. These configs only edit a block when a verdict backed by retrieved evidence covers
-  it, so a missed verdict leaves the block broken, while the baseline edits freely. What retrieval
-  buys is **cited, auditable edits**, and changed-symbol recall rising from 56% (dense) to 85%
-  (full): the hybrid, rerank and symbol-index stages help the diff stage find what changed.
-- **The sandbox loop is what closes the gap**: `4_full` 76% to `5_loop` 88%, with no cost in
-  unrelated edits (1% everywhere) and no prose edits at all.
-- **`5_loop` vs `1_llm_only` (88% vs 87%) is a tie** within noise. The claim supported here is
-  "cited and verified edits at no loss of pass rate", not "better pass rate".
-- Diff accuracy (55% for `5_loop`) is the weakest number; much of the remaining failure is
-  behaviour changes that produce wrong output without an error naming any symbol.
-
-### Held-out check
-
-`src/trf/eval/dataset_heldout/` has 6 further tutorials (3 pandas, 2 pydantic, 1 mixed) built after
-the system was tuned, around APIs the dev set does not use (`Float64Index`, `date_range(closed)`,
-`dt.weekofyear`, `Field(const)`, `ConstrainedInt`, `Required`, `get_loc(method)`, ...). Same
-validation as the dev set (`validate_dataset --dataset-dir ...`: originals pass in their old
-environment, references pass in the target one, 4 of each case's python blocks break on the new
-versions). Run once with no code changes in between:
-
-| config | cases | block pass | tutorial pass | diff acc. | changed recall | verdict exact | unrelated edits | prose edits | unresolved | LLM calls | s/case |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0_original | 6 | 29% | 0% | n/a | n/a | n/a | 0% | 0 | 0% | 0.0 | 1 |
-| 1_llm_only | 6 | 97% | 83% | n/a | n/a | n/a | 0% | 0 | 3% | 5.7 | 18 |
-| 2_dense | 6 | 76% | 0% | 71% | 61% | 57% | 0% | 0 | 24% | 6.5 | 41 |
-| 3_hybrid | 6 | 79% | 33% | 76% | 74% | 57% | 0% | 0 | 21% | 6.5 | 40 |
-| 4_full | 6 | 94% | 67% | 57% | 100% | 83% | 1% | 0 | 6% | 7.5 | 69 |
-| 5_loop | 6 | 97% | 83% | 56% | 100% | 83% | 1% | 0 | 3% | 7.8 | 32 |
-
-The ordering holds: dense < hybrid < full < loop, the loop adds a few points over `4_full`, and
-`5_loop` ties `1_llm_only` on pass rate (97% each) while its edits are cited. Changed-symbol recall
-reaches 100% for the full pipeline. Caveats: 6 tutorials (one block is about 3 points), one run,
-and the tutorials were written by a smaller model from a spec, so they are cleaner and shorter than
-real-world tutorials. They support "the dev-set result was not just tuning", not tight estimates.
-
-### Protecting blocks that already work (`6_protect`)
-
-Opt-in (`PipelineFlags.protect_working_blocks`, config `6_protect` = `5_loop` + protection,
-`scripts/demo.py --protect`). A `precheck` stage runs the ORIGINAL tutorial in its target
-environment and in its old environment (on an older Python where the old pandas has no Python 3.10
-wheel), and rewrite never edits a block that already runs. When the precheck ran, the change log
-also says which blocks now print different output from what the original printed.
-
-| | block pass | tutorial pass | change-log entries | LLM calls/case |
-|---|---|---|---|---|
-| dev, `5_loop` | 88% | 53% | 98 | 9.5 |
-| dev, `6_protect` | 88% | 53% | 77 | 7.9 |
-| held-out, `5_loop` | 97% | 83% | 33 | 7.8 |
-| held-out, `6_protect` | 97% | 83% | 32 | 6.8 |
-
-Same pass rates, about a fifth fewer edits on the dev set (unrelated edits 1% to 0%) and fewer LLM
-calls. On the dev set the precheck also flagged two blocks that run on both versions but print
-different output. It is off by default because it adds two sandbox runs per tutorial; on real
-tutorials it is the setting that avoids edits such as `applymap` -> `map`.
-
-### Spot check on six real tutorials
-
-Six public tutorials (four pandas, two FastAPI/pydantic; 2020-2021) were fetched, converted to
-Markdown with a small stdlib script and run through `5_loop` with `scripts/demo.py`. No hand
-references, no assertions, so "passing" only means the block ran; this is a smoke test, not a
-score. Python blocks passing in the target environment, as-is -> after the pipeline:
-
-| tutorial | blocks | as-is | after | blocks edited |
-|---|---|---|---|---|
-| pandas "add row" (snippets) | 3 | 0 | 2 | 3 |
-| pandas "add row" guide | 12 | 8 | 11 | 2 |
-| pandas tutorial (notebook style) | 161 | 149 | 153 | 6 |
-| pandas for beginners | 52 | 45 | 47 | 1 |
-| FastAPI + pydantic schemas | 8 | 3 | 3 | 1 |
-| FastAPI project tutorial | 36 | 21 | 21 | 0 |
-
-What it showed: real-world rot is sparse (92% of the notebook tutorial's blocks already ran), the
-`DataFrame.append` -> `pd.concat` edits were correct and cited, and most remaining failures are not
-version rot but tutorial defects the pipeline correctly leaves `unresolved`: a snippet that uses
-`pandas` or `List` without importing it, imports of the tutorial's own project modules
-(`app.schemas`), a database or test client the sandbox cannot provide. Weaknesses found: it also
-renamed `applymap` to `map` (deprecated, still works) and added `na_action='ignore'` to a
-`Series.map` call, both unnecessary edits that cited real changelog entries; project-local imports
-(`app`) are treated as pip packages to install; and the original cannot be run in its "old"
-environment for a 2021 tutorial (`pandas==1.2.4` has no Python 3.10 wheel), so there is no
-original-vs-updated output comparison yet.
-
-Caveats: the model, prompts and the matcher were debugged against this same 15-tutorial dataset
-while the eval ran (see below), so the numbers are tuned-on-the-test-set optimistic for
-`2_dense`..`5_loop`; `1_llm_only` was not tuned. The held-out check above is the untuned test.
-
-What the first runs fixed (all committed, with tests): the OpenAI backend now sends
-`max_completion_tokens`; the diff accepts symbols echoed with a ` (kind)` suffix; evidence is
-cut around the symbol instead of from the start (a long changelog chunk hid the
-`pandas.datetime` removal past the cut); prompts forbid "modernising" edits (a first run added
-`engine="pyarrow"` to a working call); a block broken by the system's own edit is retried; and an
-edit reported under a bare callee (`pandas.read_csv`) is attributed to all matching verdicts
-instead of being dropped. The pre-fix numbers were `4_full` 72% and `5_loop` 84% (kept locally in `runs/eval_v1/`; `runs/` is not committed).
 
 ## Spend cap
 
@@ -373,13 +360,21 @@ a change that predates them (Matplotlib before 2.2, say) cannot be cited.
 
 ## Known limitations
 
-- One model, one run per config, 15 tutorials, temperature 0: a single block is about 1 point of
-  block pass rate, so differences of a few points are noise. A reasoning model on a small local GPU
-  returned empty replies on every diff call, which is why the eval used a hosted model.
+- One model, one run per config, 33 evaluation tutorials, temperature 0: differences of a point or
+  two are noise. A reasoning model on a small local GPU returned empty replies on every diff call,
+  which is why the eval used a hosted model. Several fixes were found by running the dev and libs
+  sets, so those numbers are optimistic; only the held-out set was not tuned on.
+- A change can only be cited if it is in the release notes the corpus holds (the sources start at
+  NumPy 1.17, scikit-learn 0.18, Matplotlib 2.2, SQLAlchemy 1.3, pandas 1.0, pydantic 1.x), and the
+  corpus covers each project's own notes, not Stack Overflow answers or third-party docs.
+- Old environments cannot be built for very old pins (NumPy 1.11 on a Python that has wheels for
+  it, Matplotlib 1.5): the original-vs-updated output comparison is then skipped and a warning says
+  so.
 - `query_rewrite` is pattern matching on common Python errors. Errors that carry no symbol (a
   changed default producing different output, cascades from an earlier block) leave the block
   `unresolved` rather than guessed at. The loop's gain is measured in Results.
-- The API keeps jobs in memory (lost on restart, 100 kept) and runs one job at a time.
+- The web service runs jobs in a worker pool (`TRF_API_WORKERS`, default 1) and keeps the last 100
+  in `.trf_cache/jobs`; there is no authentication, so run it locally.
 
 
 - Fenced blocks indented more than three spaces (e.g. inside list items) are treated as prose.
