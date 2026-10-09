@@ -41,6 +41,7 @@ PIN_HINTS = [
     (r"pandas\.pydata\.org/pandas-docs/version/1\.3", "pandas==1.3.5"),
     (r"pandas\.pydata\.org/pandas-docs/version/1\.5", "pandas==1.5.3"),
     (r"docs\.pydantic\.dev/1\.10", "pydantic==1.10.13"),
+    (r"pydantic-docs\.helpmanual\.io", "pydantic==1.10.13"),
     (r"numpy\.org/doc/1\.19", "numpy==1.19.5"),
     (r"numpy\.org/doc/1\.17", "numpy==1.17.5"),
     (r"docs\.sqlalchemy\.org/en/13", "SQLAlchemy==1.3.24"),
@@ -49,6 +50,9 @@ PIN_HINTS = [
     (r"scikit-learn\.org/0\.23", "scikit-learn==0.23.2"),
     (r"matplotlib\.org/2\.2\.5", "matplotlib==2.2.5"),
     (r"matplotlib\.org/3\.3\.0", "matplotlib==3.3.0"),
+    (r"scipy-1\.10\.0", "scipy==1.10.1"),
+    (r"scipy-1\.6\.0", "scipy==1.6.0"),
+    (r"scipy-0\.19\.0", "scipy==0.19.0"),
 ]
 
 
@@ -123,6 +127,31 @@ def doctest_code(text: str) -> str | None:
     return "\n".join(code).strip("\n") or None
 
 
+NL = chr(10)
+IN_PROMPT = re.compile(r"^In \[\d+\]: ?(.*)$")
+CONT_PROMPT = re.compile(r"^ +\.\.\.: ?(.*)$")
+
+
+def ipython_code(text: str) -> str | None:
+    """The code of an IPython session (`In [1]: x`, `   ...: y`), without prompts or output."""
+    lines = text.strip(NL).splitlines()
+    if not any(IN_PROMPT.match(ln) for ln in lines):
+        return None
+    code: list[str] = []
+    in_code = False
+    for ln in lines:
+        m = IN_PROMPT.match(ln)
+        c = CONT_PROMPT.match(ln)
+        if m:
+            code.append(m.group(1))
+            in_code = True
+        elif c and in_code:
+            code.append(c.group(1))
+        else:
+            in_code = False  # `Out[n]:` and printed output
+    return NL.join(code).strip(NL) or None
+
+
 def parses(code: str) -> bool:
     try:
         ast.parse(MAGIC.sub("pass #", code))
@@ -136,6 +165,8 @@ def fence(raw: str) -> str:
     if not raw.strip():
         return ""
     session = doctest_code(raw)
+    if session is None:
+        session = ipython_code(raw)
     if session is not None:
         return f"```python\n{session}\n```\n\n" if parses(session) else f"```text\n{raw}\n```\n\n"
     return f"```python\n{raw}\n```\n\n" if parses(raw) else f"```text\n{raw}\n```\n\n"
