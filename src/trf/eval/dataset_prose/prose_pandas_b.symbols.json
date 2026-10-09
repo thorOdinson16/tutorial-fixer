@@ -1,0 +1,7 @@
+{
+  "pandas.read_csv(error_bad_lines)": "removed",
+  "pandas.DataFrame.iteritems": "removed",
+  "pandas.Float64Index": "removed",
+  "pandas.DataFrame.to_csv(line_terminator)": "renamed",
+  "pandas.DataFrameGroupBy.mean": "behavior_changed"
+}

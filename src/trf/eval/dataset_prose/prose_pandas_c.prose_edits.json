@@ -1,0 +1,34 @@
+{
+  "edits": [
+    {
+      "old": "This tutorial uses pandas 1.4, so the examples follow that release's API.",
+      "new": "This tutorial uses pandas 2.3, so the examples follow that release's API.",
+      "why": "states the old library version (a)"
+    },
+    {
+      "old": "The pin above is pandas 1.4.4, the release that this tutorial was checked against.",
+      "new": "The pin above is pandas 2.3.3, the release that this tutorial was checked against.",
+      "why": "states the old pinned version (a)"
+    },
+    {
+      "old": "Add a row with `DataFrame.append`, which returns a new table and leaves the first one alone.",
+      "new": "Add a row with `pd.concat`, which returns a new table and leaves the first one alone.",
+      "why": "DataFrame.append was removed in pandas 2.0 (b)"
+    },
+    {
+      "old": "To see every column, loop over the table with `iteritems`, which yields a (name, column) pair for each column.",
+      "new": "To see every column, loop over the table with `items`, which yields a (name, column) pair for each column.",
+      "why": "iteritems was removed in pandas 2.0; items is the replacement (b)"
+    },
+    {
+      "old": "Read a one-column file as a Series with `read_csv(squeeze=True)`.",
+      "new": "Read a one-column file as a Series with `read_csv(...)` followed by `.squeeze(\"columns\")`.",
+      "why": "the squeeze argument of read_csv was removed in pandas 2.0 (b)"
+    },
+    {
+      "old": "Build the day stamps with `date_range(closed='left')`, which drops the end date.",
+      "new": "Build the day stamps with `date_range(inclusive='left')`, which drops the end date.",
+      "why": "date_range's closed argument was replaced by inclusive (b)"
+    }
+  ]
+}

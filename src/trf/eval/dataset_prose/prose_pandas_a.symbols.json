@@ -1,0 +1,5 @@
+{
+  "pandas.DataFrame.append": "removed",
+  "pandas.Series.iteritems": "removed",
+  "pandas.date_range(closed)": "removed"
+}

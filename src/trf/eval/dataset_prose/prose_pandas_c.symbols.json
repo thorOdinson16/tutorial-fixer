@@ -1,0 +1,6 @@
+{
+  "pandas.DataFrame.append": "removed",
+  "pandas.DataFrame.iteritems": "removed",
+  "pandas.read_csv(squeeze)": "removed",
+  "pandas.date_range(closed)": "removed"
+}

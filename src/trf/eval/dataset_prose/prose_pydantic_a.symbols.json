@@ -1,0 +1,6 @@
+{
+  "pydantic.Field(regex)": "removed",
+  "pydantic.root_validator": "removed",
+  "pydantic.BaseModel.__root__": "removed",
+  "pydantic.BaseModel.dict": "renamed"
+}

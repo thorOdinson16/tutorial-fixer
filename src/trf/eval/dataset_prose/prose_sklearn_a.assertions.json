@@ -1,0 +1,27 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "(178, 13) 45 [59, 71, 48]"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "[2, 1, 1]"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "['x0_a', 'x0_b', 'x0_c']"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "True"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "True"
+    ]
+  }
+}

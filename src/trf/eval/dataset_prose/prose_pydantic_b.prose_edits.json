@@ -1,0 +1,34 @@
+{
+  "edits": [
+    {
+      "old": "This tutorial uses pydantic 1.10, so the models below follow the 1.x API.",
+      "new": "This tutorial uses pydantic 2.14, so the models below follow the 2.x API.",
+      "why": "states the old library version (a)"
+    },
+    {
+      "old": "The pin above is pydantic 1.10.13, the version this tutorial was checked against.",
+      "new": "The pin above is pydantic 2.14.0, the version this tutorial was checked against.",
+      "why": "states the old pinned version (a)"
+    },
+    {
+      "old": "In pydantic 1.10, a field annotated `Optional[str]` with no default is not required.",
+      "new": "In pydantic 2.14, a field annotated `Optional[str]` with no default is required.",
+      "why": "in v2 an Optional field without a default is required, not defaulted to None (a)"
+    },
+    {
+      "old": "Call `.dict()` on the model to get its values as a plain dict.",
+      "new": "Call `.model_dump()` on the model to get its values as a plain dict.",
+      "why": ".dict() was replaced by model_dump() (b)"
+    },
+    {
+      "old": "Use `Field(regex=...)` to check the format of a slug, so only lowercase letters and dashes pass.",
+      "new": "Use `Field(pattern=...)` to check the format of a slug, so only lowercase letters and dashes pass.",
+      "why": "Field's regex argument was renamed to pattern (b)"
+    },
+    {
+      "old": "A model with a single unnamed field uses `__root__`, as in the next block.",
+      "new": "A model with a single unnamed field uses `RootModel`, as in the next block.",
+      "why": "__root__ models were replaced by RootModel (b)"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "edits": [
+    {
+      "old": "This tutorial uses pandas 1.4.4.",
+      "new": "This tutorial uses pandas 2.3.3.",
+      "why": "version pin moved to the latest pandas"
+    },
+    {
+      "old": "Setting `error_bad_lines` to False skips the rows that have too many fields.",
+      "new": "Setting `on_bad_lines` to `skip` drops the rows that have too many fields.",
+      "why": "error_bad_lines was removed in pandas 2.0"
+    },
+    {
+      "old": "`iteritems` yields each column name with its values.",
+      "new": "`items` yields each column name with its values.",
+      "why": "DataFrame.iteritems was removed in pandas 2.0"
+    },
+    {
+      "old": "In pandas 1.4.4, `Float64Index` is the type for float labels.",
+      "new": "In pandas 2.0 and later, a plain `Index` holds float labels, since `Float64Index` was removed.",
+      "why": "Float64Index was removed in pandas 2.0"
+    },
+    {
+      "old": "`mean` skips the text column.",
+      "new": "`mean` needs `numeric_only=True` to skip the text column.",
+      "why": "the text column is no longer dropped silently"
+    },
+    {
+      "old": "`line_terminator` sets the line ending that `to_csv` writes.",
+      "new": "`lineterminator` sets the line ending that `to_csv` writes.",
+      "why": "to_csv line_terminator was renamed to lineterminator and then removed"
+    }
+  ]
+}

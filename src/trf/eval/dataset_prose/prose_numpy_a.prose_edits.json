@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {"old": "This tutorial uses NumPy 1.21.", "new": "This tutorial uses NumPy 2.5.", "why": "version statement: the tutorial now targets NumPy 2.5"},
+    {"old": "We start with a float array of random integers, cast with `np.float`.", "new": "We start with a float array of random integers, cast with `float`.", "why": "np.float alias was removed; the builtin float is the replacement"},
+    {"old": "Column products come from `np.product`, which multiplies along an axis.", "new": "Column products come from `np.prod`, which multiplies along an axis.", "why": "np.product was removed in favour of np.prod"},
+    {"old": "`np.cumproduct` gives running products of a list.", "new": "`np.cumprod` gives running products of a list.", "why": "np.cumproduct was removed in favour of np.cumprod"},
+    {"old": "Missing readings are marked with `np.NaN`.", "new": "Missing readings are marked with `np.nan`.", "why": "np.NaN was removed; the lowercase np.nan is the name"},
+    {"old": "Column means were checked on NumPy 1.21.", "new": "Column means were checked on NumPy 2.5.", "why": "version statement: the tutorial now targets NumPy 2.5"},
+    {"old": "Sort scores stored as `np.float_` values and keep the order with `np.argsort`.", "new": "Sort scores stored as `np.float64` values and keep the order with `np.argsort`.", "why": "np.float_ was removed; np.float64 is the explicit dtype"}
+  ]
+}

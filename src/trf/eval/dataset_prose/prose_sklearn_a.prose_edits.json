@@ -1,0 +1,34 @@
+{
+  "edits": [
+    {
+      "old": "This tutorial uses scikit-learn 0.24, and every block below was written against that release.",
+      "new": "This tutorial uses scikit-learn 1.9, and every block below was written against that release.",
+      "why": "states the old library version (a)"
+    },
+    {
+      "old": "The pin above is scikit-learn 0.24.2, the release this tutorial was checked against.",
+      "new": "The pin above is scikit-learn 1.9.1, the release this tutorial was checked against.",
+      "why": "states the old pinned version (a)"
+    },
+    {
+      "old": "Encode a categorical column with `OneHotEncoder(sparse=False)`, which returns a dense array.",
+      "new": "Encode a categorical column with `OneHotEncoder(sparse_output=False)`, which returns a dense array.",
+      "why": "the sparse argument was renamed to sparse_output (b)"
+    },
+    {
+      "old": "The encoder's `get_feature_names()` method returns the column labels in category order.",
+      "new": "The encoder's `get_feature_names_out()` method returns the column labels in category order.",
+      "why": "get_feature_names was replaced by get_feature_names_out (b)"
+    },
+    {
+      "old": "For a linear classifier trained by stochastic gradient descent, use `SGDClassifier(loss='log')`, which fits a logistic model.",
+      "new": "For a linear classifier trained by stochastic gradient descent, use `SGDClassifier(loss='log_loss')`, which fits a logistic model.",
+      "why": "the 'log' loss name was renamed to 'log_loss' (b)"
+    },
+    {
+      "old": "A random forest with `max_features='auto'` considers the square root of the feature count at each split.",
+      "new": "A random forest with `max_features='sqrt'` considers the square root of the feature count at each split.",
+      "why": "'auto' was removed; 'sqrt' is the same behaviour for classifiers (b)"
+    }
+  ]
+}

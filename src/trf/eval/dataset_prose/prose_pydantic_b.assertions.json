@@ -1,0 +1,27 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "9001 ['a']"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "{'host': 'example.org', 'port': 9000, 'tags': ['a']}"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "ab-cd"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "None"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "['a', 'b']"
+    ]
+  }
+}

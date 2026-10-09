@@ -34,10 +34,39 @@ def render(segments: list[Segment], blocks: dict[str, CodeBlock]) -> str:
 def _evidence_line(e: ChangeLogEntry, urls: dict[str, str]) -> str:
     if e.kind == "llm_prior":
         return "uncited: made from model knowledge, no retrieval"
+    if e.kind == "defect_fix":
+        return f"no release note applies; removes the error: {(e.error or '')[:120]}"
     srcs = e.source_urls or sorted({urls[c] for c in e.evidence_chunk_ids if c in urls})
     cite = ", ".join(f"`{c}`" for c in e.evidence_chunk_ids)
     links = " · ".join(f"[source]({u})" for u in srcs)
     return " ".join(x for x in (f"evidence: {cite}" if cite else "", links) if x)
+
+
+def _prose_section(state: GraphState) -> list[str]:
+    if not state.prose_edits:
+        return []
+    lines = ["## Prose changes", ""]
+    for e in state.prose_edits:
+        lines += [
+            f"- _{e.old}_ -> _{e.new}_",
+            f"  - Why: {e.reason} (linked to `{e.linked}`).",
+        ]
+    return [*lines, ""]
+
+
+def _suggestion_section(state: GraphState) -> list[str]:
+    if not state.suggestions:
+        return []
+    lines = [
+        "## Suggested fixes (not applied)",
+        "",
+        "These blocks fail because the tutorial is incomplete. A possible fix is shown; it is an "
+        "assumption, so it was not applied.",
+        "",
+    ]
+    for block_id, text in state.suggestions.items():
+        lines += [f"- **{block_id}**: `{text}`"]
+    return [*lines, ""]
 
 
 def _output_comparison(state: GraphState, py: list[CodeBlock]) -> list[str]:
@@ -99,6 +128,7 @@ def build_change_log(state: GraphState, blocks: list[CodeBlock]) -> str:
 
     lines += _output_comparison(state, py)
 
+    lines += _prose_section(state)
     lines += ["## Changes", ""]
     if not state.change_log:
         lines += ["_No edits were made._", ""]
@@ -137,6 +167,7 @@ def build_change_log(state: GraphState, blocks: list[CodeBlock]) -> str:
             if d:
                 lines.append(f"  - Likely cause: {d.text}.")
         lines.append("")
+    lines += _suggestion_section(state)
     if state.warnings:
         lines += ["## Pipeline warnings", ""] + [f"- {w}" for w in state.warnings] + [""]
     return "\n".join(lines)

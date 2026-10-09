@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {"old": "This tutorial uses Matplotlib 3.4.", "new": "This tutorial uses Matplotlib 3.11.", "why": "version statement: the tutorial now targets Matplotlib 3.11"},
+    {"old": "Pick the `seaborn` style, which Matplotlib 3.4 ships built in, and draw a line with markers.", "new": "Pick the `seaborn-v0_8` style, which Matplotlib 3.11 ships built in, and draw a line with markers.", "why": "the seaborn style was renamed to seaborn-v0_8 and is now versioned"},
+    {"old": "Sample four colours from viridis with `matplotlib.cm.get_cmap`.", "new": "Sample four colours from viridis with `matplotlib.colormaps`.", "why": "matplotlib.cm.get_cmap was removed in favour of the matplotlib.colormaps registry"},
+    {"old": "The tests were run on Matplotlib 3.4,", "new": "The tests were run on Matplotlib 3.11,", "why": "version statement: the tests now target Matplotlib 3.11"},
+    {"old": "with `grid(b=True)`,", "new": "with `grid(visible=True)`,", "why": "the b keyword of Axes.grid was replaced by visible"},
+    {"old": "Read the RGB buffer size with `tostring_rgb`, which copies the canvas into bytes.", "new": "Read the RGB buffer size with `buffer_rgba`, which copies the canvas into bytes.", "why": "FigureCanvas.tostring_rgb was removed in favour of buffer_rgba"}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "sklearn.preprocessing.OneHotEncoder(sparse)": "signature_changed",
+  "sklearn.preprocessing.OneHotEncoder.get_feature_names": "renamed",
+  "sklearn.linear_model.SGDClassifier(loss)": "signature_changed",
+  "sklearn.ensemble.RandomForestClassifier(max_features)": "signature_changed"
+}

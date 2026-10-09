@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {"old": "This tutorial uses SQLAlchemy 1.4.", "new": "This tutorial uses SQLAlchemy 2.1.", "why": "version statement: the tutorial now targets SQLAlchemy 2.1"},
+    {"old": "The metadata is bound with `MetaData(bind=engine)`, so `create_all` needs no argument.", "new": "The metadata is created with `MetaData()`, so `create_all` takes the engine.", "why": "MetaData(bind=...) was removed; the engine is passed to create_all"},
+    {"old": "Check the table with `engine.table_names()` at the end.", "new": "Check the table with `inspect(engine).get_table_names()` at the end.", "why": "Engine.table_names was removed in favour of the inspector"},
+    {"old": "In SQLAlchemy 1.4, `engine.execute` runs a statement directly.", "new": "In SQLAlchemy 2.1, `conn.execute` runs a statement on a connection.", "why": "Engine.execute was removed; statements run on a connection"},
+    {"old": "by calling `select` on a list of columns.", "new": "by calling `select` on the columns.", "why": "select([...]) with a list was removed; columns are positional"},
+    {"old": "then read the low items by name with `row['name']`.", "new": "then read the low items by name with `row._mapping['name']`.", "why": "Row no longer supports string indexing; use the mapping"}
+  ]
+}

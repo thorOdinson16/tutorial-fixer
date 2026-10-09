@@ -1,0 +1,7 @@
+{
+  "b2": {"stdout_contains": ["['items']"]},
+  "b3": {"stdout_contains": ["stocked 3"]},
+  "b4": {"stdout_contains": ["['washer', 'bolt', 'nut']"]},
+  "b5": {"stdout_contains": ["('bolt', 40)"]},
+  "b6": {"stdout_contains": ["['bearing', 'bolt', 'washer']"]}
+}

@@ -1,0 +1,27 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "(4, 3) [5, 9]"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "5 21"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "['region', 'units', 'price']"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "Series 12"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "3 2021-01-03"
+    ]
+  }
+}

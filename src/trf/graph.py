@@ -2,7 +2,8 @@
 
 ingest -> extract -> resolve_versions -> precheck (opt-in) -> retrieve -> diff -> rewrite ->
 sandbox, then sandbox -> assemble (all pass / cap hit) or sandbox -> query_rewrite -> retrieve
-(failures, under cap); query_rewrite -> assemble when no failing block names a library symbol.
+(failures, under cap); query_rewrite -> repair when no failing block names a library symbol.
+Every path to the end passes repair -> prose (opt-in stages) -> assemble.
 """
 
 from __future__ import annotations
@@ -20,7 +21,9 @@ from trf.nodes import (
     extract,
     ingest,
     precheck,
+    prose,
     query_rewrite,
+    repair,
     resolve_versions,
     retrieve,
     rewrite,
@@ -44,6 +47,8 @@ def default_nodes(flags: PipelineFlags | None = None, llm: LLM | None = None) ->
         "rewrite": rewrite.make_rewrite(llm, flags),
         "sandbox": sandbox.sandbox,
         "query_rewrite": query_rewrite.query_rewrite,
+        "repair": repair.make_repair(flags, llm),
+        "prose": prose.make_prose(llm, flags),
         "assemble": assemble.assemble,
     }
 
@@ -97,13 +102,15 @@ def build_graph(
     g.add_conditional_edges(
         "sandbox",
         lambda s: route_after_sandbox(s, flags),
-        {"query_rewrite": "query_rewrite", "assemble": "assemble"},
+        {"query_rewrite": "query_rewrite", "assemble": "repair"},
     )
     g.add_conditional_edges(
         "query_rewrite",
         lambda s: route_after_query_rewrite(s, flags),
-        {"retrieve": "retrieve", "assemble": "assemble"},
+        {"retrieve": "retrieve", "assemble": "repair"},
     )
+    g.add_edge("repair", "prose")  # both are no-ops unless their flags are on
+    g.add_edge("prose", "assemble")
     g.add_edge("assemble", END)
     return g.compile()
 

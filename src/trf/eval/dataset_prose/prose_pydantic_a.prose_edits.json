@@ -1,0 +1,39 @@
+{
+  "edits": [
+    {
+      "old": "This tutorial uses pydantic 1.10.13.",
+      "new": "This tutorial uses pydantic 2.14.0.",
+      "why": "version pin moved to the latest pydantic"
+    },
+    {
+      "old": "As of pydantic 1.10, `Field(regex=...)` is the way to add a pattern check.",
+      "new": "As of pydantic 2.0, `Field(pattern=...)` is the way to add a pattern check.",
+      "why": "Field regex was renamed to pattern in pydantic 2"
+    },
+    {
+      "old": "The `regex` argument does the check, so a bad code raises a ValidationError.",
+      "new": "The `pattern` argument does the check, so a bad code raises a ValidationError.",
+      "why": "the argument name changed with the Field rename"
+    },
+    {
+      "old": "`dict` returns the fields as a plain dict.",
+      "new": "`model_dump` returns the fields as a plain dict.",
+      "why": "BaseModel.dict was replaced by model_dump"
+    },
+    {
+      "old": "`root_validator` runs after the fields are checked.",
+      "new": "`model_validator` with `mode=\"after\"` runs after the fields are checked.",
+      "why": "root_validator was replaced by model_validator"
+    },
+    {
+      "old": "A custom root type uses `__root__` in the class body.",
+      "new": "A custom root type subclasses `RootModel` with its type in brackets.",
+      "why": "__root__ models were replaced by RootModel"
+    },
+    {
+      "old": "`__root__` declares the one value the model wraps.",
+      "new": "`RootModel` declares the one value the model wraps.",
+      "why": "the root value is now declared by RootModel"
+    }
+  ]
+}

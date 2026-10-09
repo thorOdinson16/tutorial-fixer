@@ -65,7 +65,7 @@ class DiffVerdict(BaseModel):
     _cited = field_validator("evidence_chunk_ids")(_require_evidence)
 
 
-ChangeKind = Literal["api_change", "version_pin", "dependency", "llm_prior"]
+ChangeKind = Literal["api_change", "version_pin", "dependency", "llm_prior", "defect_fix"]
 
 
 class ChangeLogEntry(BaseModel):
@@ -80,6 +80,7 @@ class ChangeLogEntry(BaseModel):
     kind: ChangeKind = "api_change"
     symbol: str | None = None
     description: str
+    error: str | None = None  # defect_fix: the error the repair removed
     evidence_chunk_ids: list[str] = Field(default_factory=list)
     source_urls: list[str] = Field(default_factory=list)
 
@@ -87,6 +88,8 @@ class ChangeLogEntry(BaseModel):
     def _cited(self) -> ChangeLogEntry:
         if self.kind in ("api_change", "dependency") and not self.evidence_chunk_ids:
             raise ValueError("evidence_chunk_ids must cite at least one retrieved chunk")
+        if self.kind == "defect_fix" and not self.error:
+            raise ValueError("defect_fix entries must quote the error they removed")
         if self.kind == "version_pin" and not self.source_urls:
             raise ValueError("version_pin entries must cite a source URL")
         return self
@@ -104,6 +107,16 @@ class RunResult(BaseModel):
     @property
     def ok(self) -> bool:
         return self.exit_code == 0 and not self.timed_out and self.passed_assertions is not False
+
+
+class ProseEdit(BaseModel):
+    """One edited sentence of the explanation text, with what justified it."""
+
+    segment: int  # index into GraphState.segments
+    old: str
+    new: str
+    reason: str
+    linked: str  # the changed symbol, or "version"
 
 
 class Segment(BaseModel):
@@ -140,6 +153,8 @@ class GraphState(BaseModel):
     verdicts: list[DiffVerdict] = Field(default_factory=list)
     run_results: list[RunResult] = Field(default_factory=list)
     change_log: list[ChangeLogEntry] = Field(default_factory=list)
+    prose_edits: list[ProseEdit] = Field(default_factory=list)
+    suggestions: dict[str, str] = Field(default_factory=dict)  # block id -> suggested definition
     protected_blocks: list[str] = Field(default_factory=list)  # work already; rewrite skips them
     old_outputs: dict[str, str] = Field(default_factory=dict)  # stdout of the original, old env
     error_symbols: dict[str, list[str]] = Field(default_factory=dict)  # failing block -> symbols

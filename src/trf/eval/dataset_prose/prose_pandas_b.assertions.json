@@ -1,0 +1,27 @@
+{
+  "b2": {
+    "stdout_contains": [
+      "['ann', 'cy']"
+    ]
+  },
+  "b3": {
+    "stdout_contains": [
+      "['name', 'score']"
+    ]
+  },
+  "b4": {
+    "stdout_contains": [
+      "float64"
+    ]
+  },
+  "b5": {
+    "stdout_contains": [
+      "['v']"
+    ]
+  },
+  "b6": {
+    "stdout_contains": [
+      "'a\\n1\\n2\\n'"
+    ]
+  }
+}

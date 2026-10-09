@@ -1,0 +1,29 @@
+{
+  "edits": [
+    {
+      "old": "This tutorial uses pandas 1.3.5.",
+      "new": "This tutorial uses pandas 2.3.3.",
+      "why": "version pin moved to the latest pandas"
+    },
+    {
+      "old": "As of pandas 1.3, `DataFrame.append` is the way to add a row.",
+      "new": "As of pandas 2.0, `DataFrame.append` is gone, so use `pd.concat` to add a row.",
+      "why": "DataFrame.append was removed in pandas 2.0"
+    },
+    {
+      "old": "`append` returns a new frame, so assign the result.",
+      "new": "`concat` returns a new frame, so assign the result.",
+      "why": "the replacement call is concat"
+    },
+    {
+      "old": "`iteritems` yields index and value pairs.",
+      "new": "`items` yields index and value pairs.",
+      "why": "Series.iteritems was removed in pandas 2.0"
+    },
+    {
+      "old": "The `closed` argument of `date_range` controls which end is left out.",
+      "new": "The `inclusive` argument of `date_range` controls which end is left out.",
+      "why": "date_range closed was replaced by inclusive and then removed"
+    }
+  ]
+}
