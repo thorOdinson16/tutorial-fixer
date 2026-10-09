@@ -46,3 +46,30 @@ def test_node_edits_blocks_logs_defect_fixes_and_is_off_by_default():
     (e,) = out["change_log"]
     assert e.kind == "defect_fix" and "never imported" in e.error and e.block_id == "b2"
     assert make_prerepair(ON)(GraphState(blocks=blocks("print(1)\n"))) == {}
+
+
+def test_a_later_rewrite_keeps_the_repair_entry_of_its_block():
+    from test_diff_rewrite_assemble import (
+        FakeLLM,
+        RewriteOut,
+        V,
+        make_rewrite,
+        prepared,
+        with_evidence,
+    )
+    from trf.state import ChangeLogEntry
+
+    s = with_evidence(prepared()).model_copy(update={"verdicts": [V]})
+    repair = ChangeLogEntry(
+        block_id="b2", kind="defect_fix", description="Added `import pandas as pd`.",
+        error="static check: `pd` is used but never imported or defined",
+    )  # fmt: skip
+    s = s.model_copy(update={"change_log": [repair]})
+    new = 'import pandas as pd\ndf = pd.DataFrame({"a": [1]})\ndf = pd.concat([df, pd.DataFrame([{"a": 2}])])\nprint(len(df))\n'
+    from test_diff_rewrite_assemble import RETRIEVAL, ChangeOut
+
+    out = make_rewrite(
+        FakeLLM(RewriteOut(code=new, changes=[ChangeOut(symbol=V.symbol)])), RETRIEVAL
+    )(s)
+    kinds = sorted(e.kind for e in out["change_log"] if e.block_id == "b2")
+    assert kinds == ["api_change", "defect_fix"]

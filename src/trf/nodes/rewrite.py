@@ -361,7 +361,10 @@ def make_rewrite(
                         description="edited from model knowledge (uncited)",
                     )  # fmt: skip
                 ]
-            entries = [e for e in entries if e.block_id != b.id] + block_entries
+            # a re-rewrite replaces the block's earlier API-change entries, but never a repair entry
+            entries = [
+                e for e in entries if e.block_id != b.id or e.kind == "defect_fix"
+            ] + block_entries
             blocks[i] = b.model_copy(
                 update={"source": code, "status": "pending", "last_error": None}
             )
