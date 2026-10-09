@@ -15,6 +15,7 @@ prose             (prose-update cases) listed hand edits reproduced / applied ed
 from __future__ import annotations
 
 import difflib
+import re
 
 from trf.nodes.ingest import split_segments
 from trf.state import GraphState
@@ -67,13 +68,20 @@ def prose_score(expected: list[dict], got: list) -> dict[str, int]:
     is (nearly) the expected text; an edit to any other sentence is unneeded.
     """
     want = {e["old"]: e["new"] for e in expected}
+
+    def norm(text: str) -> str:  # `3.11` and `3.11.2` are the same claim
+        return re.sub(r"\bv?\d+(?:\.\d+)+\b", "<v>", text)
+
     correct = unneeded = 0
     done: set[str] = set()
     for g in got:
         exp = want.get(g.old)
         if exp is None:
             unneeded += 1
-        elif g.old not in done and difflib.SequenceMatcher(None, g.new, exp).ratio() >= 0.9:
+        elif (
+            g.old not in done
+            and difflib.SequenceMatcher(None, norm(g.new), norm(exp)).ratio() >= 0.9
+        ):
             correct += 1
             done.add(g.old)
     return {"expected": len(want), "applied": len(got), "correct": correct, "unneeded": unneeded}

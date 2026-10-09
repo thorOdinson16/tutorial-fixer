@@ -19,7 +19,9 @@ justified it, and appears in the change log.
 
 from __future__ import annotations
 
+import builtins
 import difflib
+import keyword
 import re
 from collections.abc import Callable
 
@@ -95,6 +97,49 @@ def changed_symbols(state: GraphState) -> dict[str, str]:
     return {k: d for k, d in out.items() if len(k) >= 3}
 
 
+_IDENT = re.compile(r"[A-Za-z_]\w{3,}")
+_IGNORED = set(keyword.kwlist) | set(dir(builtins))
+
+
+def _changed_lines(old: str, new: str) -> tuple[list[str], list[str]]:
+    """(lines removed or replaced in `old`, lines added or replaced in `new`)."""
+    a, b = old.splitlines(), new.splitlines()
+    removed: list[str] = []
+    added: list[str] = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag != "equal":
+            removed += a[i1:i2]
+            added += b[j1:j2]
+    return removed, added
+
+
+def removed_names(state: GraphState) -> dict[str, str]:
+    """Identifiers the code edits took away (`table_names`, `execute`, `bind`...).
+
+    An old API name that vanished from a block is what prose sentences then still talk about. Only
+    names of 4+ characters that appear in the block's old lines and nowhere in its new code count.
+    """
+    out: dict[str, str] = {}
+    for b in state.blocks:
+        if b.lang != "python" or b.source == b.original_source:
+            continue
+        removed, _ = _changed_lines(b.original_source, b.source)
+        now = set(_IDENT.findall(b.source))
+        for name in _IDENT.findall("\n".join(removed)):
+            if name not in now and name not in _IGNORED:
+                out.setdefault(name, f"`{name}` was removed from the code")
+    return out
+
+
+def added_digits(state: GraphState) -> set[str]:
+    """Digits in lines the code edits ADDED (e.g. `seaborn-v0_8`): prose may use them too."""
+    digits: set[str] = set()
+    for b in state.blocks:
+        if b.lang == "python" and b.source != b.original_source:
+            digits |= _digits("\n".join(_changed_lines(b.original_source, b.source)[1]))
+    return digits
+
+
 def _mentions_symbol(sentence: str, tail: str) -> bool:
     return bool(re.search(rf"(?<![\w]){re.escape(tail)}(?![\w])", sentence))
 
@@ -109,7 +154,7 @@ def _mentions_version(sentence: str, libraries: list[str]) -> bool:
 
 def candidates(state: GraphState) -> list[tuple[int, str, str]]:
     """(segment index, sentence, why) for sentences worth showing to the model."""
-    syms = changed_symbols(state)
+    syms = {**removed_names(state), **changed_symbols(state)}
     out: list[tuple[int, str, str]] = []
     for i, seg in enumerate(state.segments):
         if seg.kind != "prose":
@@ -168,7 +213,7 @@ def make_prose(
             return {}
         if holder["llm"] is None:
             holder["llm"] = LLM.from_env()
-        syms = changed_symbols(state)
+        syms = {**removed_names(state), **changed_symbols(state)}
         versions = "; ".join(
             f"{LIB_WORDS.get(lib, lib)} {state.old_versions.get(lib, '?')} -> {ver}"
             for lib, ver in sorted(state.target_versions.items())
@@ -189,7 +234,7 @@ def make_prose(
         except LLMError as e:
             return {"warnings": [*state.warnings, f"prose: LLM failed ({e})"]}
 
-        allowed = set()
+        allowed = added_digits(state)
         for ver in state.target_versions.values():
             allowed |= _digits(ver)
         for d in syms.values():
@@ -201,7 +246,7 @@ def make_prose(
             if not 0 <= e.id < len(cands):
                 continue
             idx, old, why = cands[e.id]
-            reason = validate_edit(old, e.new, e.linked or why, allowed, syms)
+            reason = validate_edit(old, e.new, why, allowed, syms)  # `why`: our own selection
             seg = segments[idx]
             if reason is None and seg.text.count(old) != 1:
                 reason = "does not match exactly one place"

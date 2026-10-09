@@ -168,3 +168,30 @@ def test_graph_runs_repair_and_prose_stages_without_flags_unchanged():
                                     "loop_count": s.loop_count + 1}}  # fmt: skip
     out = build_graph(nodes).invoke(GraphState(tutorial_md=md), {"recursion_limit": 50})
     assert out["output_md"] == md and out["prose_edits"] == []
+
+
+def test_removed_code_names_make_their_sentences_candidates():
+    from trf.nodes.prose import added_digits, removed_names
+
+    code = CodeBlock.new("b2", "engine.table_names()\nx = 1\n").model_copy(
+        update={"source": "inspect(engine).get_table_names()\nx = 1\nstyle('v0_8')\n"}
+    )
+    st = GraphState(
+        segments=[
+            Segment(kind="prose", text="Check it with `engine.table_names()`. Add 1 and 2.\n")
+        ],
+        blocks=[code],
+        libraries=["sqlalchemy"],
+    )
+    assert set(removed_names(st)) == {"table_names"}  # `engine`, `x` are still in the new code
+    assert added_digits(st) == {"0", "8"}
+    assert [(s, w) for _, s, w in candidates(st)] == [
+        ("Check it with `engine.table_names()`.", "table_names")
+    ]
+
+
+def test_a_version_sentence_is_allowed_to_change_even_if_the_model_names_another_link():
+    old = "Pick the `seaborn` style, which Matplotlib 3.4 ships built in."
+    new = "Pick the `seaborn-v0_8` style, which Matplotlib 3.11 ships built in."
+    assert validate_edit(old, new, "version", {"3", "11", "0", "8"}, {}) is None
+    assert "numbers" in validate_edit(old, new, "version", {"3", "11"}, {})
