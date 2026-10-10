@@ -514,6 +514,10 @@ def create_app(
     def list_jobs() -> list[JobSummary]:
         return jobs.summaries()
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon() -> Response:
+        return Response((STATIC_DIR / "favicon.ico").read_bytes(), media_type="image/x-icon")
+
     @app.get("/health")
     def health() -> dict[str, bool]:
         return {"ok": True}

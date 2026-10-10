@@ -379,3 +379,13 @@ def test_blocks_after_an_earlier_failure_are_marked_and_counted():
     assert [b.downstream_of for b in result.blocks] == [None, "b1"]
     assert result.blocks[1].last_error == "NameError: b"
     assert result.summary.unresolved == 2 and result.summary.downstream == 1
+
+
+def test_favicon_is_served_at_the_conventional_path_and_in_the_page():
+    with TestClient(create_app(runner=fake_runner)) as client:
+        ico = client.get("/favicon.ico")
+        svg = client.get("/static/favicon.svg")
+        page = client.get("/").text
+    assert ico.status_code == 200 and ico.content[:4] == b"\x00\x00\x01\x00"
+    assert svg.status_code == 200 and "svg" in svg.headers["content-type"]
+    assert 'rel="icon"' in page and "/favicon.ico" in page

@@ -6,6 +6,7 @@
 .card-pad { padding: 20px; }
 
 .btn {
+  text-decoration: none;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   border: 1px solid var(--border); background: var(--surface); color: var(--fg);
   padding: 8px 14px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 550;
@@ -13,7 +14,7 @@
 .btn:hover:not(:disabled) { background: var(--surface-2); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-.btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+.btn.primary:hover:not(:disabled) { opacity: 0.85; background: var(--accent); }
 .btn.big { padding: 12px 22px; font-size: 16px; }
 .btn.ghost { border-color: transparent; background: transparent; }
 .btn.small { padding: 4px 10px; font-size: 13px; }

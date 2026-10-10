@@ -10,8 +10,8 @@
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; }
 .brand-mark {
   width: 28px; height: 28px; border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), #22b8cf);
-  display: grid; place-items: center; color: #fff; font-size: 15px;
+  background: var(--accent); color: var(--accent-fg);
+  display: grid; place-items: center; font-size: 15px;
 }
 .topbar-spacer { flex: 1; }
 
