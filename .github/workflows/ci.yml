@@ -11,7 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - name: Install (no model downloads: the retrieval tests use small fixtures)
+      - name: Install
+        # no model downloads: the retrieval tests use small fixtures
         run: |
           uv sync --extra api
           uv pip install numpy
@@ -19,7 +20,9 @@ jobs:
         run: |
           uv run --no-sync ruff check src tests scripts
           uv run --no-sync ruff format --check src tests scripts
-      - name: Tests (the GitHub runner has Docker, but the sandbox tests need images built from the network, so they are skipped here and run locally)
+      - name: Tests
+        # The runner has Docker, but the sandbox tests need images built from the network, so they
+        # are skipped here and run locally.
         env:
           TRF_SKIP_DOCKER_TESTS: "1"
         run: uv run --no-sync pytest -q
