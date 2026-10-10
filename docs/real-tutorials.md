@@ -88,3 +88,37 @@ Bugs these pages found, all fixed: the Matplotlib 2.2.5 old environment asked fo
 the in-container runner cannot run (any old-environment failure is now only a warning, and the
 floor is 3.7); blocks could not write a file or build a Matplotlib cache on the read-only
 filesystem (they now get a writable scratch directory inside the tmpfs).
+
+## Fresh hold-out (run once)
+
+After the system was finished, 19 pages the tool had never seen were converted and run **once**,
+every mode on, with no changes made in response to the numbers before they were written down. The
+pages: 6 SciPy (1.10 tutorials for optimize, stats, signal and linalg; the 0.19 sparse and 1.6
+`misc.derivative` reference pages), and fresh pages for pandas 1.5.3 (groupby, merging), pydantic
+1.10 (settings, types, model config), NumPy 1.19 (indexing, creation), SQLAlchemy 1.3 (session
+basics, loading relationships), scikit-learn 0.24 (preprocessing, tree) and Matplotlib 3.3.0 (legend
+guide, text intro). I chose the pages myself; four more pages sent by the user were dropped because
+they had nothing runnable (a list of function names, a table of methods, and a page whose code has no
+indentation in its own HTML).
+
+| | pages | python blocks | run as-is | after |
+|---|---|---|---|---|
+| SciPy | 6 | 246 | 233 | 242 |
+| pandas 1.5.3 | 2 | 132 | 0 | 97 |
+| NumPy 1.19 | 2 | 37 | 0 | 35 |
+| SQLAlchemy 1.3 | 2 | 80 | 7 | 9 |
+| pydantic 1.10 | 3 | 37 | 30 | 35 |
+| scikit-learn 0.24 | 2 | 43 | 40 | 42 |
+| Matplotlib 3.3.0 | 2 | 31 | 28 | 30 |
+| **total** | **19** | **606** | **338 (56%)** | **490 (81%)** |
+
+How to read it: the 0 "as-is" for pandas and NumPy is mostly because the documentation snippets
+leave out `import pandas as pd` and `import numpy as np`; most of the lift there is the defect-repair
+step adding imports, not version fixes. The 1.10 SciPy tutorials mostly already ran on SciPy 1.18, so
+they show the tool leaving working code alone (71 of 71 and 106 of 106 untouched); the real SciPy
+rot is on the old pages (`misc.derivative` was removed in SciPy 1.12; `signal` 34 to 40 of 44).
+Of the 116 blocks still failing, 104 are downstream of one earlier failure; the 13 root failures are
+a name the page defines only in its prose (`get_letter_type`, `Base`, `ax`, `objs`), an optional
+package (`h5py`), a Postgres driver, two dataset downloads (the sandbox has no network), two
+examples that raise an error on purpose, and one example using `min` and `max` before defining them.
+None of the 13 is a version change the tool missed.

@@ -4,9 +4,9 @@ Every evaluation number, with its caveats. Raw per-run logs live in `runs/` (not
 
 Model `gpt-6-luna` via the OpenAI API, temperature 0, Docker sandbox, max 4 loops, one run per
 configuration. A block passes only if it ran in the target environment and met its assertions.
-Three evaluation sets, 33 tutorials in all (181 python blocks). The numbers below predate SciPy
-(a seventh library, 3 more validated tutorials in `dataset_libs/`) and deprecation mining from
-source; the model has not been run on them yet.
+Three evaluation sets, 33 tutorials in all (181 python blocks). The table below was measured before SciPy
+(a seventh library, 3 more validated tutorials in `dataset_libs/`) and before deprecations were
+mined from library source; the rerun after both is the section that follows it.
 
 The sets:
 
@@ -14,7 +14,7 @@ The sets:
 |---|---|---|---|
 | dev | 15 | pandas, pydantic | hand-written; used while building the system |
 | held-out | 6 | pandas, pydantic | written later around APIs the dev set does not use |
-| libs | 12 (+3 SciPy, not yet run) | NumPy, SQLAlchemy, scikit-learn, Matplotlib (3 each) | written by subagents from a spec |
+| libs | 12 (+3 SciPy, see below) | NumPy, SQLAlchemy, scikit-learn, Matplotlib (3 each) | written by subagents from a spec |
 
 Every tutorial is validated in Docker (`validate_dataset --dataset-dir ...`): the original passes in
 its old environment, the hand-fixed reference passes in the target one, and several blocks of the
@@ -31,6 +31,21 @@ original really break there.
 | `4_full` | 77% / 5 | 94% / 4 | 77% / 6 | 80% / 15 |
 | `5_loop` (+ sandbox loop) | 88% / 8 | 97% / 5 | 98% / 11 | 93% / 24 |
 | `6_protect` (+ keep working blocks) | 88% / 8 | 97% / 5 | 98% / 11 | 93% / 24 |
+
+**After SciPy and source mining** (`5_loop` again, 36 tutorials, 196 blocks; the libs set now has
+the 3 SciPy tutorials):
+
+| set | block pass rate | tutorials fully passing |
+|---|---|---|
+| dev (15) | 89% | 9 |
+| held-out (6) | 97% | 5 |
+| libs (15, incl. SciPy) | 98% | 13 |
+| **all 36** | **94% (184 of 196)** | **27 (75%)** |
+
+The earlier 93% (24 of 33 tutorials, 73%) is not worse: source mining did not cause a regression.
+The sets overlap but are not identical (3 SciPy tutorials are new), and it is one run per
+configuration, so a point either way is noise. SciPy on its own (3 tutorials, 15 blocks): `5_loop`
+and `6_protect` 15 of 15 and 3 of 3 tutorials, `1_llm_only` 14 of 15 and 2 of 3.
 
 Reading it:
 

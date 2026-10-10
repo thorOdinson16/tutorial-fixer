@@ -61,13 +61,15 @@ Model `gpt-6-luna`, one run per configuration, so small differences are noise.
 
 | | blocks that run, untouched | after the pipeline |
 |---|---|---|
-| 33 evaluation tutorials (hand-built, validated) | 36% | **93%** (LLM-only baseline: 92%) |
+| 36 evaluation tutorials (hand-built, validated; 7 libraries) | 36% | **94%** (LLM-only baseline: 92%) |
 | 20 real web tutorials (624 blocks) | 75% | **89%** |
 | 17 pages of the projects' own docs (654 blocks) | 53% | **71%** |
+| 19 fresh pages, run once after the system was done (606 blocks) | 56% | **81%** |
 
 The pipeline ties a no-retrieval LLM baseline on pass rate; what retrieval adds is **cited,
 verifiable edits**, and the sandbox loop is what lifts retrieval-only variants from 80% to 93%.
-Most blocks that stay broken on real pages are not version rot but incomplete tutorials (a missing
+On the fresh pages, 104 of the 116 blocks still failing sit downstream of one earlier failure, and
+none of the 13 root failures is a version change the tool missed. Most blocks that stay broken on real pages are not version rot but incomplete tutorials (a missing
 project module, a data file, a database). The numbers and their caveats are in
 [docs/results.md](docs/results.md) and [docs/real-tutorials.md](docs/real-tutorials.md).
 
