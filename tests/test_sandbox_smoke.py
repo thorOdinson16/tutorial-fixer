@@ -1,5 +1,6 @@
 """Docker smoke tests. Skipped (not faked) when no Docker daemon is reachable."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -12,7 +13,10 @@ from trf.sandbox_runner.runner import parse_traceback
 RUNNER_DIR = Path(__file__).parents[1] / "src" / "trf" / "sandbox_runner"
 IMAGE = "trf-sandbox:test"
 
-needs_docker = pytest.mark.skipif(not docker_available(), reason="Docker daemon not available")
+needs_docker = pytest.mark.skipif(
+    bool(os.environ.get("TRF_SKIP_DOCKER_TESTS")) or not docker_available(),
+    reason="Docker daemon not available (or TRF_SKIP_DOCKER_TESTS is set)",
+)
 
 
 def test_parse_traceback():

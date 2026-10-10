@@ -19,5 +19,7 @@ jobs:
         run: |
           uv run --no-sync ruff check src tests scripts
           uv run --no-sync ruff format --check src tests scripts
-      - name: Tests (Docker-backed tests skip themselves when no sandbox image is built)
+      - name: Tests (the GitHub runner has Docker, but the sandbox tests need images built from the network, so they are skipped here and run locally)
+        env:
+          TRF_SKIP_DOCKER_TESTS: "1"
         run: uv run --no-sync pytest -q

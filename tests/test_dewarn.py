@@ -1,6 +1,7 @@
 """Warning capture and the fix_warnings stage (fake stages and sandbox; one real Docker check)."""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -76,7 +77,10 @@ def test_interpret_attaches_the_recorded_warnings_to_each_block():
     assert results[0].stderr == ""  # the marker is not part of the block's stderr
 
 
-needs_docker = pytest.mark.skipif(not docker_available(), reason="Docker daemon not available")
+needs_docker = pytest.mark.skipif(
+    bool(os.environ.get("TRF_SKIP_DOCKER_TESTS")) or not docker_available(),
+    reason="Docker daemon not available (or TRF_SKIP_DOCKER_TESTS is set)",
+)
 
 
 def ensure_test_image() -> None:
