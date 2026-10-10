@@ -61,7 +61,7 @@ Model `gpt-6-luna`, one run per configuration, so small differences are noise.
 
 | | blocks that run, untouched | after the pipeline |
 |---|---|---|
-| 36 evaluation tutorials (hand-built, validated; 7 libraries) | 36% | **94%** (LLM-only baseline: 92%) |
+| 36 evaluation tutorials (hand-built, validated; 7 libraries) | 36% (33 of them) | **94%** (LLM-only baseline: 92%) |
 | 20 real web tutorials (624 blocks) | 75% | **89%** |
 | 17 pages of the projects' own docs (654 blocks) | 53% | **71%** |
 | 19 fresh pages, run once after the system was done (606 blocks) | 56% | **81%** |
